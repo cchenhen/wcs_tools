@@ -46,5 +46,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 移除转换进度监听
   removeConvertProgressListener: () => {
     ipcRenderer.removeAllListeners('convert-progress');
+  },
+  
+  // ============ 图片打包ZIP工具 API ============
+  
+  // 扫描包含图片的子文件夹
+  scanImageFolders: (sourcePath) => ipcRenderer.invoke('scan-image-folders', sourcePath),
+  
+  // 打包图片为ZIP
+  packImagesToZip: (options) => ipcRenderer.invoke('pack-images-to-zip', options),
+  
+  // 监听打包进度
+  onImageZipProgress: (callback) => {
+    ipcRenderer.on('imagezip-progress', (event, data) => callback(data));
+  },
+  
+  // 移除打包进度监听
+  removeImageZipProgressListener: () => {
+    ipcRenderer.removeAllListeners('imagezip-progress');
   }
 });

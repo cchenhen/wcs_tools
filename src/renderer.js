@@ -544,3 +544,245 @@ convertResetBtn.addEventListener('click', () => {
   convertStage.textContent = '';
   convertKeepOriginal.checked = false;
 });
+
+// ============ 图片打包ZIP工具 ============
+
+// 获取DOM元素
+const imagezipSelectSourceBtn = document.getElementById('imagezip-selectSourceBtn');
+const imagezipSourcePath = document.getElementById('imagezip-sourcePath');
+const imagezipScanBtn = document.getElementById('imagezip-scanBtn');
+const imagezipFolderListSection = document.getElementById('imagezip-folderListSection');
+const imagezipFolderList = document.getElementById('imagezip-folderList');
+const imagezipFolderCount = document.getElementById('imagezip-folderCount');
+const imagezipSelectAllBtn = document.getElementById('imagezip-selectAllBtn');
+const imagezipDeselectAllBtn = document.getElementById('imagezip-deselectAllBtn');
+const imagezipTargetSection = document.getElementById('imagezip-targetSection');
+const imagezipTargetPath = document.getElementById('imagezip-targetPath');
+const imagezipSelectTargetBtn = document.getElementById('imagezip-selectTargetBtn');
+const imagezipCompressionLevel = document.getElementById('imagezip-compressionLevel');
+const imagezipStartBtn = document.getElementById('imagezip-startBtn');
+const imagezipProgressSection = document.getElementById('imagezip-progressSection');
+const imagezipProgressFill = document.getElementById('imagezip-progressFill');
+const imagezipProgressText = document.getElementById('imagezip-progressText');
+const imagezipCurrentFolder = document.getElementById('imagezip-currentFolder');
+const imagezipStage = document.getElementById('imagezip-stage');
+const imagezipResultSection = document.getElementById('imagezip-resultSection');
+const imagezipSuccessCount = document.getElementById('imagezip-successCount');
+const imagezipImageCount = document.getElementById('imagezip-imageCount');
+const imagezipFailedResult = document.getElementById('imagezip-failedResult');
+const imagezipFailedCount = document.getElementById('imagezip-failedCount');
+const imagezipOpenFolderBtn = document.getElementById('imagezip-openFolderBtn');
+const imagezipResetBtn = document.getElementById('imagezip-resetBtn');
+const imagezipErrorList = document.getElementById('imagezip-errorList');
+const imagezipErrorListContent = document.getElementById('imagezip-errorListContent');
+
+// 存储扫描到的图片文件夹
+let scannedImageFolders = [];
+
+// 选择图片源文件夹
+imagezipSelectSourceBtn.addEventListener('click', async () => {
+  const path = await window.electronAPI.selectSourceFolder();
+  if (path) {
+    imagezipSourcePath.value = path;
+    imagezipScanBtn.disabled = false;
+    // 隐藏之前的结果
+    imagezipFolderListSection.style.display = 'none';
+    imagezipTargetSection.style.display = 'none';
+    imagezipResultSection.style.display = 'none';
+  }
+});
+
+// 选择ZIP输出文件夹
+imagezipSelectTargetBtn.addEventListener('click', async () => {
+  const path = await window.electronAPI.selectTargetFolder();
+  if (path) {
+    imagezipTargetPath.value = path;
+    updateImageZipButtonState();
+  }
+});
+
+// 扫描图片文件夹
+imagezipScanBtn.addEventListener('click', async () => {
+  imagezipScanBtn.disabled = true;
+  imagezipScanBtn.textContent = '扫描中...';
+  
+  try {
+    scannedImageFolders = await window.electronAPI.scanImageFolders(imagezipSourcePath.value);
+    
+    // 显示结果
+    imagezipFolderListSection.style.display = 'block';
+    imagezipTargetSection.style.display = 'block';
+    
+    // 默认将输出文件夹设置为源文件夹下的"打包的图片"子文件夹
+    if (!imagezipTargetPath.value) {
+      const separator = imagezipSourcePath.value.includes('\\') ? '\\' : '/';
+      imagezipTargetPath.value = imagezipSourcePath.value + separator + '打包的图片';
+    }
+    
+    imagezipFolderCount.textContent = `共找到 ${scannedImageFolders.length} 个包含图片的子文件夹`;
+    
+    // 渲染文件夹列表
+    renderImageFolderList();
+    
+  } catch (error) {
+    alert('扫描出错: ' + error.message);
+  } finally {
+    imagezipScanBtn.disabled = false;
+    imagezipScanBtn.textContent = '扫描子文件夹';
+  }
+});
+
+// 渲染图片文件夹列表
+function renderImageFolderList() {
+  imagezipFolderList.innerHTML = '';
+  
+  if (scannedImageFolders.length === 0) {
+    imagezipFolderList.innerHTML = '<div class="no-videos">未找到包含图片的子文件夹</div>';
+    return;
+  }
+  
+  scannedImageFolders.forEach((folder, index) => {
+    const item = document.createElement('div');
+    item.className = 'video-item';
+    item.innerHTML = `
+      <label class="checkbox-label">
+        <input type="checkbox" class="imagezip-checkbox" data-index="${index}" checked>
+        <div class="video-info">
+          <span class="video-name" title="${folder.path}">📁 ${folder.name}</span>
+          <span class="video-meta">
+            <span class="video-folder">🖼️ ${folder.imageCount} 张图片</span>
+            <span class="video-size">${formatFileSize(folder.totalSize)}</span>
+          </span>
+        </div>
+      </label>
+    `;
+    imagezipFolderList.appendChild(item);
+  });
+  
+  updateImageZipButtonState();
+}
+
+// 全选图片文件夹
+imagezipSelectAllBtn.addEventListener('click', () => {
+  document.querySelectorAll('.imagezip-checkbox').forEach(cb => cb.checked = true);
+  updateImageZipButtonState();
+});
+
+// 取消全选图片文件夹
+imagezipDeselectAllBtn.addEventListener('click', () => {
+  document.querySelectorAll('.imagezip-checkbox').forEach(cb => cb.checked = false);
+  updateImageZipButtonState();
+});
+
+// 监听复选框变化
+imagezipFolderList.addEventListener('change', (e) => {
+  if (e.target.classList.contains('imagezip-checkbox')) {
+    updateImageZipButtonState();
+  }
+});
+
+// 更新打包按钮状态
+function updateImageZipButtonState() {
+  const checkedCount = document.querySelectorAll('.imagezip-checkbox:checked').length;
+  const hasTargetPath = imagezipTargetPath.value.trim() !== '';
+  imagezipStartBtn.disabled = checkedCount === 0 || !hasTargetPath;
+  
+  if (checkedCount > 0) {
+    imagezipStartBtn.textContent = `📦 打包 ${checkedCount} 个文件夹`;
+  } else {
+    imagezipStartBtn.textContent = '📦 开始打包';
+  }
+}
+
+// 开始打包
+imagezipStartBtn.addEventListener('click', async () => {
+  // 获取选中的文件夹
+  const selectedFolders = [];
+  document.querySelectorAll('.imagezip-checkbox:checked').forEach(cb => {
+    const index = parseInt(cb.dataset.index);
+    selectedFolders.push(scannedImageFolders[index]);
+  });
+  
+  if (selectedFolders.length === 0) {
+    alert('请至少选择一个文件夹');
+    return;
+  }
+  
+  // 显示进度
+  imagezipProgressSection.style.display = 'block';
+  imagezipResultSection.style.display = 'none';
+  imagezipStartBtn.disabled = true;
+  
+  // 监听进度更新
+  window.electronAPI.onImageZipProgress((data) => {
+    const percent = Math.round((data.current / data.total) * 100);
+    imagezipProgressFill.style.width = percent + '%';
+    imagezipProgressText.textContent = `${percent}% (${data.current}/${data.total})`;
+    imagezipCurrentFolder.textContent = data.currentFolder;
+    imagezipStage.textContent = '📦 正在创建ZIP...';
+  });
+  
+  try {
+    // 获取压缩级别设置
+    const compressionLevel = parseInt(imagezipCompressionLevel.value, 10);
+    
+    const result = await window.electronAPI.packImagesToZip({
+      folders: selectedFolders,
+      targetPath: imagezipTargetPath.value,
+      compressionLevel: compressionLevel
+    });
+    
+    // 显示结果
+    imagezipProgressSection.style.display = 'none';
+    imagezipResultSection.style.display = 'block';
+    
+    imagezipSuccessCount.textContent = result.success;
+    imagezipImageCount.textContent = result.totalImages;
+    
+    if (result.failed > 0) {
+      imagezipFailedResult.style.display = 'flex';
+      imagezipFailedCount.textContent = result.failed;
+      
+      // 显示错误详情
+      imagezipErrorList.style.display = 'block';
+      imagezipErrorListContent.innerHTML = '';
+      result.errors.forEach(err => {
+        const li = document.createElement('li');
+        li.textContent = `${err.folder}: ${err.error}`;
+        imagezipErrorListContent.appendChild(li);
+      });
+    } else {
+      imagezipFailedResult.style.display = 'none';
+      imagezipErrorList.style.display = 'none';
+    }
+    
+  } catch (error) {
+    alert('打包出错: ' + error.message);
+    imagezipProgressSection.style.display = 'none';
+  } finally {
+    window.electronAPI.removeImageZipProgressListener();
+    imagezipStartBtn.disabled = false;
+  }
+});
+
+// 打开输出文件夹
+imagezipOpenFolderBtn.addEventListener('click', () => {
+  window.electronAPI.openFolder(imagezipTargetPath.value);
+});
+
+// 重新开始（图片打包工具）
+imagezipResetBtn.addEventListener('click', () => {
+  imagezipSourcePath.value = '';
+  imagezipTargetPath.value = '';
+  scannedImageFolders = [];
+  imagezipScanBtn.disabled = true;
+  imagezipStartBtn.disabled = true;
+  imagezipFolderListSection.style.display = 'none';
+  imagezipTargetSection.style.display = 'none';
+  imagezipProgressSection.style.display = 'none';
+  imagezipResultSection.style.display = 'none';
+  imagezipProgressFill.style.width = '0%';
+  imagezipProgressText.textContent = '0%';
+  imagezipCurrentFolder.textContent = '';
+  imagezipStage.textContent = '';
+});

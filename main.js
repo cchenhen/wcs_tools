@@ -591,3 +591,151 @@ ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keep
   
   return results;
 });
+
+// ============ 图片打包ZIP工具相关功能 ============
+
+// 扫描包含图片的子文件夹
+function scanImageFolders(dir) {
+  const folders = [];
+  
+  try {
+    const items = fs.readdirSync(dir);
+    
+    for (const item of items) {
+      const fullPath = path.join(dir, item);
+      
+      try {
+        const stat = fs.statSync(fullPath);
+        
+        if (stat.isDirectory()) {
+          // 扫描该子文件夹中的图片
+          const images = scanImagesInFolder(fullPath);
+          
+          if (images.length > 0) {
+            // 计算总大小
+            const totalSize = images.reduce((sum, img) => sum + img.size, 0);
+            
+            folders.push({
+              name: item,
+              path: fullPath,
+              imageCount: images.length,
+              totalSize: totalSize,
+              images: images
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`无法访问 ${fullPath}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error(`无法读取目录 ${dir}:`, err.message);
+  }
+  
+  return folders;
+}
+
+// 扫描文件夹中的图片（递归）
+function scanImagesInFolder(dir, baseDir = dir) {
+  const images = [];
+  
+  try {
+    const items = fs.readdirSync(dir);
+    
+    for (const item of items) {
+      const fullPath = path.join(dir, item);
+      
+      try {
+        const stat = fs.statSync(fullPath);
+        
+        if (stat.isDirectory()) {
+          // 递归扫描子目录
+          images.push(...scanImagesInFolder(fullPath, baseDir));
+        } else if (stat.isFile()) {
+          const ext = path.extname(item).toLowerCase();
+          if (IMAGE_EXTENSIONS.includes(ext)) {
+            const relativePath = path.relative(baseDir, fullPath);
+            images.push({
+              name: item,
+              absolutePath: fullPath,
+              relativePath: relativePath,
+              size: stat.size
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`无法访问 ${fullPath}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error(`无法读取目录 ${dir}:`, err.message);
+  }
+  
+  return images;
+}
+
+// 扫描图片文件夹
+ipcMain.handle('scan-image-folders', async (event, sourcePath) => {
+  return scanImageFolders(sourcePath);
+});
+
+// 打包图片为ZIP
+ipcMain.handle('pack-images-to-zip', async (event, { folders, targetPath, compressionLevel = 1 }) => {
+  const results = {
+    success: 0,
+    failed: 0,
+    totalImages: 0,
+    errors: []
+  };
+  
+  // 确保输出目录存在
+  if (!fs.existsSync(targetPath)) {
+    fs.mkdirSync(targetPath, { recursive: true });
+  }
+  
+  for (let i = 0; i < folders.length; i++) {
+    const folder = folders[i];
+    
+    try {
+      // 发送进度
+      mainWindow.webContents.send('imagezip-progress', {
+        current: i + 1,
+        total: folders.length,
+        currentFolder: folder.name,
+        stage: 'zipping'
+      });
+      
+      // 准备文件列表
+      const filesToZip = folder.images.map(img => ({
+        absolutePath: img.absolutePath,
+        relativePath: img.relativePath
+      }));
+      
+      // 生成ZIP文件名（处理重名）
+      let zipName = `${folder.name}.zip`;
+      let zipPath = path.join(targetPath, zipName);
+      let counter = 1;
+      
+      while (fs.existsSync(zipPath)) {
+        zipName = `${folder.name}_${counter}.zip`;
+        zipPath = path.join(targetPath, zipName);
+        counter++;
+      }
+      
+      // 创建ZIP
+      await createZip(filesToZip, zipPath, compressionLevel);
+      
+      results.success++;
+      results.totalImages += folder.images.length;
+      
+    } catch (err) {
+      results.failed++;
+      results.errors.push({
+        folder: folder.name,
+        error: err.message
+      });
+    }
+  }
+  
+  return results;
+});

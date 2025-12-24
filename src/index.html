@@ -10,13 +10,14 @@
   <div class="container">
     <header>
       <h1>🛠️ 多功能文件工具</h1>
-      <p class="subtitle">视频快捷方式提取 & 7z转ZIP转换</p>
+      <p class="subtitle">视频快捷方式提取 & 7z转ZIP & 图片打包</p>
     </header>
 
     <!-- 工具选项卡 -->
     <div class="tabs">
       <button class="tab-btn active" data-tab="shortcut">🎬 视频快捷方式</button>
       <button class="tab-btn" data-tab="convert">📦 7z转ZIP</button>
+      <button class="tab-btn" data-tab="imagezip">🖼️ 图片打包</button>
     </div>
 
     <!-- 视频快捷方式工具 -->
@@ -267,6 +268,131 @@
           <div class="error-list" id="convert-errorList" style="display: none;">
             <h4>错误详情:</h4>
             <ul id="convert-errorListContent"></ul>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 图片打包ZIP工具 -->
+    <div id="imagezip-tool" class="tool-content">
+      <main>
+        <!-- 步骤 1: 选择源文件夹 -->
+        <section class="card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <h2>选择包含图片文件夹的目录</h2>
+          </div>
+          <div class="folder-selector">
+            <input type="text" id="imagezip-sourcePath" placeholder="请选择包含子文件夹的目录..." readonly>
+            <button id="imagezip-selectSourceBtn" class="btn btn-primary">浏览...</button>
+          </div>
+          <button id="imagezip-scanBtn" class="btn btn-secondary" disabled>扫描子文件夹</button>
+        </section>
+
+        <!-- 步骤 2: 子文件夹列表 -->
+        <section class="card" id="imagezip-folderListSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">2</span>
+            <h2>扫描结果</h2>
+          </div>
+          <div class="video-stats">
+            <span id="imagezip-folderCount">共找到 0 个包含图片的子文件夹</span>
+            <div class="select-actions">
+              <button id="imagezip-selectAllBtn" class="btn btn-small">全选</button>
+              <button id="imagezip-deselectAllBtn" class="btn btn-small">取消全选</button>
+            </div>
+          </div>
+          <div class="video-list" id="imagezip-folderList">
+            <!-- 文件夹列表将在这里动态生成 -->
+          </div>
+        </section>
+
+        <!-- 步骤 3: 设置输出选项 -->
+        <section class="card" id="imagezip-targetSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">3</span>
+            <h2>设置输出选项</h2>
+          </div>
+          
+          <div class="option-group">
+            <label>ZIP文件输出目录</label>
+            <div class="folder-selector">
+              <input type="text" id="imagezip-targetPath" placeholder="请选择ZIP文件保存位置..." readonly>
+              <button id="imagezip-selectTargetBtn" class="btn btn-primary">浏览...</button>
+            </div>
+            <p class="option-hint">📦 每个子文件夹的图片将打包成一个同名的ZIP文件</p>
+          </div>
+
+          <div class="option-group">
+            <label>压缩级别</label>
+            <select id="imagezip-compressionLevel" class="form-select">
+              <option value="0">🚀 极速模式 (不压缩，仅打包)</option>
+              <option value="1" selected>⚡ 快速模式 (轻度压缩)</option>
+              <option value="5">⚖️ 平衡模式 (中等压缩)</option>
+              <option value="9">📦 最高压缩 (最慢)</option>
+            </select>
+          </div>
+
+          <div class="info-box">
+            <h4>📋 打包说明：</h4>
+            <ul>
+              <li>🖼️ 支持格式: JPG, PNG, GIF, BMP, WebP, TIFF 等</li>
+              <li>📁 每个子文件夹会生成一个独立的ZIP文件</li>
+              <li>📛 ZIP文件以子文件夹名称命名</li>
+              <li>✨ 空文件夹或无图片的文件夹将被跳过</li>
+            </ul>
+          </div>
+
+          <button id="imagezip-startBtn" class="btn btn-success btn-large" disabled>
+            📦 开始打包
+          </button>
+        </section>
+
+        <!-- 进度条 -->
+        <section class="card" id="imagezip-progressSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">⏳</span>
+            <h2>正在打包...</h2>
+          </div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill" id="imagezip-progressFill"></div>
+            </div>
+            <div class="progress-text">
+              <span id="imagezip-progressText">0%</span>
+              <span id="imagezip-currentFolder"></span>
+            </div>
+            <div class="stage-info" id="imagezip-stage"></div>
+          </div>
+        </section>
+
+        <!-- 完成结果 -->
+        <section class="card" id="imagezip-resultSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">✅</span>
+            <h2>打包完成</h2>
+          </div>
+          <div class="result-summary">
+            <div class="result-item success">
+              <span class="result-icon">✓</span>
+              <span>成功打包: <strong id="imagezip-successCount">0</strong> 个文件夹</span>
+            </div>
+            <div class="result-item info">
+              <span class="result-icon">🖼️</span>
+              <span>共计图片: <strong id="imagezip-imageCount">0</strong> 张</span>
+            </div>
+            <div class="result-item failed" id="imagezip-failedResult" style="display: none;">
+              <span class="result-icon">✗</span>
+              <span>失败: <strong id="imagezip-failedCount">0</strong> 个</span>
+            </div>
+          </div>
+          <div class="result-actions">
+            <button id="imagezip-openFolderBtn" class="btn btn-primary">打开输出文件夹</button>
+            <button id="imagezip-resetBtn" class="btn btn-secondary">重新开始</button>
+          </div>
+          <div class="error-list" id="imagezip-errorList" style="display: none;">
+            <h4>错误详情:</h4>
+            <ul id="imagezip-errorListContent"></ul>
           </div>
         </section>
       </main>

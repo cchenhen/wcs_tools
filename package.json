@@ -34,7 +34,7 @@
   },
   "build": {
     "appId": "com.videoextractor.app",
-    "productName": "视频快捷方式提取器",
+    "productName": "wcs工具箱",
     "directories": {
       "output": "release"
     },
