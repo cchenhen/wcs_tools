@@ -50,7 +50,13 @@ function createWindow() {
     show: false
   });
 
-  mainWindow.loadFile('index.html');
+  // 开发模式下加载 dist 目录，打包后加载当前目录
+  const isDev = !app.isPackaged;
+  if (isDev) {
+    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+  } else {
+    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+  }
   
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
