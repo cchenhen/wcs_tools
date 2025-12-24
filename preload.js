@@ -64,5 +64,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 移除打包进度监听
   removeImageZipProgressListener: () => {
     ipcRenderer.removeAllListeners('imagezip-progress');
+  },
+  
+  // ============ 任务队列 API ============
+  
+  // 添加任务到队列
+  taskQueueAdd: (taskType, taskData, taskName) => 
+    ipcRenderer.invoke('task-queue-add', { taskType, taskData, taskName }),
+  
+  // 获取所有任务
+  taskQueueGetAll: () => ipcRenderer.invoke('task-queue-get-all'),
+  
+  // 获取单个任务
+  taskQueueGet: (taskId) => ipcRenderer.invoke('task-queue-get', taskId),
+  
+  // 取消任务
+  taskQueueCancel: (taskId) => ipcRenderer.invoke('task-queue-cancel', taskId),
+  
+  // 清除已完成的任务
+  taskQueueClearCompleted: () => ipcRenderer.invoke('task-queue-clear-completed'),
+  
+  // 监听任务更新
+  onTaskUpdate: (callback) => {
+    ipcRenderer.on('task-update', (event, task) => callback(task));
+  },
+  
+  // 监听任务列表更新
+  onTaskListUpdate: (callback) => {
+    ipcRenderer.on('task-list-update', (event, tasks) => callback(tasks));
+  },
+  
+  // 移除任务监听
+  removeTaskListeners: () => {
+    ipcRenderer.removeAllListeners('task-update');
+    ipcRenderer.removeAllListeners('task-list-update');
   }
 });

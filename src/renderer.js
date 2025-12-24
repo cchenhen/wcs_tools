@@ -212,55 +212,26 @@ createBtn.addEventListener('click', async () => {
   // 获取命名方式
   const namingMode = document.querySelector('input[name="namingMode"]:checked').value;
   
-  // 显示进度
-  progressSection.style.display = 'block';
-  resultSection.style.display = 'none';
-  createBtn.disabled = true;
-  
-  // 监听进度更新
-  window.electronAPI.onProgressUpdate((data) => {
-    const percent = Math.round((data.current / data.total) * 100);
-    progressFill.style.width = percent + '%';
-    progressText.textContent = `${percent}% (${data.current}/${data.total})`;
-    currentFile.textContent = data.currentFile;
-  });
-  
   try {
-    const result = await window.electronAPI.createShortcuts({
-      videos: selectedVideos,
-      targetPath: targetPath.value,
-      namingMode: namingMode
-    });
+    // 添加任务到队列
+    const taskId = await window.electronAPI.taskQueueAdd(
+      'create-shortcuts',
+      {
+        videos: selectedVideos,
+        targetPath: targetPath.value,
+        namingMode: namingMode
+      },
+      `创建 ${selectedVideos.length} 个视频快捷方式`
+    );
     
-    // 显示结果
-    progressSection.style.display = 'none';
-    resultSection.style.display = 'block';
+    // 显示成功提示
+    alert(`任务已添加到队列！\n任务ID: ${taskId}\n请查看任务队列面板了解进度。`);
     
-    successCount.textContent = result.success;
-    
-    if (result.failed > 0) {
-      failedResult.style.display = 'flex';
-      failedCount.textContent = result.failed;
-      
-      // 显示错误详情
-      errorList.style.display = 'block';
-      errorListContent.innerHTML = '';
-      result.errors.forEach(err => {
-        const li = document.createElement('li');
-        li.textContent = `${err.video}: ${err.error}`;
-        errorListContent.appendChild(li);
-      });
-    } else {
-      failedResult.style.display = 'none';
-      errorList.style.display = 'none';
-    }
+    // 可以选择重置界面或保持当前状态
+    // resetBtn.click();
     
   } catch (error) {
-    alert('创建快捷方式出错: ' + error.message);
-    progressSection.style.display = 'none';
-  } finally {
-    window.electronAPI.removeProgressListener();
-    createBtn.disabled = false;
+    alert('添加任务失败: ' + error.message);
   }
 });
 
@@ -464,61 +435,27 @@ convertStartBtn.addEventListener('click', async () => {
     return;
   }
   
-  // 显示进度
-  convertProgressSection.style.display = 'block';
-  convertResultSection.style.display = 'none';
-  convertStartBtn.disabled = true;
-  
-  // 监听进度更新
-  window.electronAPI.onConvertProgress((data) => {
-    const percent = Math.round((data.current / data.total) * 100);
-    convertProgressFill.style.width = percent + '%';
-    convertProgressText.textContent = `${percent}% (${data.current}/${data.total})`;
-    convertCurrentFile.textContent = data.currentFile;
-    convertStage.textContent = getStageDescription(data.stage);
-  });
-  
   try {
     // 获取压缩级别设置
     const compressionLevel = parseInt(document.getElementById('convert-compressionLevel').value, 10);
     
-    const result = await window.electronAPI.convert7zToZip({
-      files: selectedFiles,
-      videoOutputPath: convertVideoPath.value,
-      keepOriginal: convertKeepOriginal.checked,
-      compressionLevel: compressionLevel
-    });
+    // 添加任务到队列
+    const taskId = await window.electronAPI.taskQueueAdd(
+      'convert-7z-to-zip',
+      {
+        files: selectedFiles,
+        videoOutputPath: convertVideoPath.value,
+        keepOriginal: convertKeepOriginal.checked,
+        compressionLevel: compressionLevel
+      },
+      `转换 ${selectedFiles.length} 个7z文件`
+    );
     
-    // 显示结果
-    convertProgressSection.style.display = 'none';
-    convertResultSection.style.display = 'block';
-    
-    convertSuccessCount.textContent = result.success;
-    convertVideoCount.textContent = result.videosExtracted;
-    
-    if (result.failed > 0) {
-      convertFailedResult.style.display = 'flex';
-      convertFailedCount.textContent = result.failed;
-      
-      // 显示错误详情
-      convertErrorList.style.display = 'block';
-      convertErrorListContent.innerHTML = '';
-      result.errors.forEach(err => {
-        const li = document.createElement('li');
-        li.textContent = `${err.file}: ${err.error}`;
-        convertErrorListContent.appendChild(li);
-      });
-    } else {
-      convertFailedResult.style.display = 'none';
-      convertErrorList.style.display = 'none';
-    }
+    // 显示成功提示
+    alert(`任务已添加到队列！\n任务ID: ${taskId}\n请查看任务队列面板了解进度。`);
     
   } catch (error) {
-    alert('转换出错: ' + error.message);
-    convertProgressSection.style.display = 'none';
-  } finally {
-    window.electronAPI.removeConvertProgressListener();
-    convertStartBtn.disabled = false;
+    alert('添加任务失败: ' + error.message);
   }
 });
 
@@ -708,60 +645,26 @@ imagezipStartBtn.addEventListener('click', async () => {
     return;
   }
   
-  // 显示进度
-  imagezipProgressSection.style.display = 'block';
-  imagezipResultSection.style.display = 'none';
-  imagezipStartBtn.disabled = true;
-  
-  // 监听进度更新
-  window.electronAPI.onImageZipProgress((data) => {
-    const percent = Math.round((data.current / data.total) * 100);
-    imagezipProgressFill.style.width = percent + '%';
-    imagezipProgressText.textContent = `${percent}% (${data.current}/${data.total})`;
-    imagezipCurrentFolder.textContent = data.currentFolder;
-    imagezipStage.textContent = '📦 正在创建ZIP...';
-  });
-  
   try {
     // 获取压缩级别设置
     const compressionLevel = parseInt(imagezipCompressionLevel.value, 10);
     
-    const result = await window.electronAPI.packImagesToZip({
-      folders: selectedFolders,
-      targetPath: imagezipTargetPath.value,
-      compressionLevel: compressionLevel
-    });
+    // 添加任务到队列
+    const taskId = await window.electronAPI.taskQueueAdd(
+      'pack-images',
+      {
+        folders: selectedFolders,
+        targetPath: imagezipTargetPath.value,
+        compressionLevel: compressionLevel
+      },
+      `打包 ${selectedFolders.length} 个图片文件夹`
+    );
     
-    // 显示结果
-    imagezipProgressSection.style.display = 'none';
-    imagezipResultSection.style.display = 'block';
-    
-    imagezipSuccessCount.textContent = result.success;
-    imagezipImageCount.textContent = result.totalImages;
-    
-    if (result.failed > 0) {
-      imagezipFailedResult.style.display = 'flex';
-      imagezipFailedCount.textContent = result.failed;
-      
-      // 显示错误详情
-      imagezipErrorList.style.display = 'block';
-      imagezipErrorListContent.innerHTML = '';
-      result.errors.forEach(err => {
-        const li = document.createElement('li');
-        li.textContent = `${err.folder}: ${err.error}`;
-        imagezipErrorListContent.appendChild(li);
-      });
-    } else {
-      imagezipFailedResult.style.display = 'none';
-      imagezipErrorList.style.display = 'none';
-    }
+    // 显示成功提示
+    alert(`任务已添加到队列！\n任务ID: ${taskId}\n请查看任务队列面板了解进度。`);
     
   } catch (error) {
-    alert('打包出错: ' + error.message);
-    imagezipProgressSection.style.display = 'none';
-  } finally {
-    window.electronAPI.removeImageZipProgressListener();
-    imagezipStartBtn.disabled = false;
+    alert('添加任务失败: ' + error.message);
   }
 });
 
@@ -786,3 +689,168 @@ imagezipResetBtn.addEventListener('click', () => {
   imagezipCurrentFolder.textContent = '';
   imagezipStage.textContent = '';
 });
+
+// ============ 任务队列管理 ============
+
+// 获取DOM元素
+const taskQueuePanel = document.getElementById('taskQueuePanel');
+const toggleQueueBtn = document.getElementById('toggleQueueBtn');
+const clearCompletedBtn = document.getElementById('clearCompletedBtn');
+const taskList = document.getElementById('taskList');
+const taskQueueContent = document.getElementById('taskQueueContent');
+
+let isQueueExpanded = true;
+
+// 切换队列面板展开/收起
+toggleQueueBtn.addEventListener('click', () => {
+  isQueueExpanded = !isQueueExpanded;
+  if (isQueueExpanded) {
+    taskQueueContent.style.display = 'block';
+    toggleQueueBtn.textContent = '▼';
+  } else {
+    taskQueueContent.style.display = 'none';
+    toggleQueueBtn.textContent = '▲';
+  }
+});
+
+// 清除已完成的任务
+clearCompletedBtn.addEventListener('click', async () => {
+  await window.electronAPI.taskQueueClearCompleted();
+});
+
+// 格式化任务状态
+function formatTaskStatus(status) {
+  const statusMap = {
+    'pending': { text: '等待中', icon: '⏳', class: 'pending' },
+    'running': { text: '执行中', icon: '▶️', class: 'running' },
+    'completed': { text: '已完成', icon: '✅', class: 'completed' },
+    'failed': { text: '失败', icon: '❌', class: 'failed' },
+    'cancelled': { text: '已取消', icon: '🚫', class: 'cancelled' }
+  };
+  return statusMap[status] || { text: status, icon: '❓', class: 'unknown' };
+}
+
+// 格式化任务类型
+function formatTaskType(type) {
+  const typeMap = {
+    'create-shortcuts': '视频快捷方式',
+    'convert-7z-to-zip': '7z转ZIP',
+    'pack-images': '图片打包'
+  };
+  return typeMap[type] || type;
+}
+
+// 格式化时间
+function formatTime(timestamp) {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diff = now - date;
+  
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+  
+  return date.toLocaleString('zh-CN', { 
+    month: '2-digit', 
+    day: '2-digit', 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+}
+
+// 渲染任务列表
+function renderTaskList(tasks) {
+  if (!tasks || tasks.length === 0) {
+    taskList.innerHTML = '<div class="task-empty">暂无任务</div>';
+    return;
+  }
+  
+  taskList.innerHTML = '';
+  
+  tasks.forEach(task => {
+    const status = formatTaskStatus(task.status);
+    const taskType = formatTaskType(task.type);
+    const timeStr = formatTime(task.createdAt);
+    
+    const taskItem = document.createElement('div');
+    taskItem.className = `task-item task-${status.class}`;
+    taskItem.dataset.taskId = task.id;
+    
+    let progressHTML = '';
+    if (task.status === 'running') {
+      progressHTML = `
+        <div class="task-progress-bar">
+          <div class="task-progress-fill" style="width: ${task.progress}%"></div>
+        </div>
+        <div class="task-progress-text">${task.progress}%</div>
+      `;
+    }
+    
+    let resultHTML = '';
+    if (task.status === 'completed' && task.result) {
+      const r = task.result;
+      resultHTML = `<div class="task-result">成功:${r.success} 失败:${r.failed}</div>`;
+    } else if (task.status === 'failed') {
+      resultHTML = `<div class="task-error">${task.error}</div>`;
+    }
+    
+    let actionsHTML = '';
+    if (task.status === 'pending') {
+      actionsHTML = `
+        <button class="task-btn-cancel" data-task-id="${task.id}">取消</button>
+      `;
+    }
+    
+    taskItem.innerHTML = `
+      <div class="task-header">
+        <span class="task-status-icon">${status.icon}</span>
+        <div class="task-info">
+          <div class="task-title">${task.name || taskType}</div>
+          <div class="task-meta">
+            <span class="task-type">${taskType}</span>
+            <span class="task-time">${timeStr}</span>
+            <span class="task-status">${status.text}</span>
+          </div>
+        </div>
+        <div class="task-actions">
+          ${actionsHTML}
+        </div>
+      </div>
+      ${progressHTML}
+      ${resultHTML}
+    `;
+    
+    taskList.appendChild(taskItem);
+  });
+  
+  // 绑定取消按钮事件
+  taskList.querySelectorAll('.task-btn-cancel').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const taskId = parseInt(e.target.dataset.taskId);
+      await window.electronAPI.taskQueueCancel(taskId);
+    });
+  });
+}
+
+// 监听任务更新
+window.electronAPI.onTaskUpdate((task) => {
+  // 更新单个任务
+  const taskItem = document.querySelector(`.task-item[data-task-id="${task.id}"]`);
+  if (taskItem) {
+    // 重新获取所有任务并渲染
+    window.electronAPI.taskQueueGetAll().then(renderTaskList);
+  } else {
+    // 新任务，重新获取所有任务
+    window.electronAPI.taskQueueGetAll().then(renderTaskList);
+  }
+});
+
+// 监听任务列表更新
+window.electronAPI.onTaskListUpdate((tasks) => {
+  renderTaskList(tasks);
+});
+
+// 初始化时加载任务列表
+window.electronAPI.taskQueueGetAll().then(renderTaskList);
+

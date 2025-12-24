@@ -18,6 +18,7 @@
   "devDependencies": {
     "@babel/core": "^7.23.7",
     "@babel/preset-env": "^7.23.7",
+    "asar": "^3.2.0",
     "babel-loader": "^9.1.3",
     "copy-webpack-plugin": "^12.0.2",
     "css-loader": "^6.8.1",
@@ -38,6 +39,7 @@
     "directories": {
       "output": "release"
     },
+    "npmRebuild": false,
     "files": [
       "dist/**/*",
       "main.js",
@@ -47,6 +49,9 @@
       "!node_modules/**/*.md"
     ],
     "extraResources": [],
+    "asarUnpack": [
+      "node_modules/7zip-bin/**/*"
+    ],
     "mac": {
       "category": "public.app-category.utilities",
       "target": [
@@ -56,9 +61,9 @@
     },
     "win": {
       "target": [
-        "nsis",
         "portable"
-      ]
+      ],
+      "signAndEditExecutable": false
     },
     "linux": {
       "target": [
@@ -68,7 +73,10 @@
     }
   },
   "dependencies": {
+    "7zip-bin": "^5.2.0",
     "7zip-min": "^2.1.0",
-    "archiver": "^7.0.1"
+    "archiver": "^7.0.1",
+    "minimatch": "^9.0.3",
+    "readdir-glob": "^1.1.3"
   }
 }
