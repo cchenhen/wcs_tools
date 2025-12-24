@@ -2,8 +2,23 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { execFile, spawn } = require('child_process');
 const sevenZip = require('7zip-min');
 const archiver = require('archiver');
+
+// 获取7z可执行文件路径 (7zip-min内置的7za)
+function get7zPath() {
+  const sevenZipPath = require.resolve('7zip-min');
+  const sevenZipDir = path.dirname(sevenZipPath);
+  
+  if (process.platform === 'win32') {
+    return path.join(sevenZipDir, '7zip-bin', 'win', process.arch, '7za.exe');
+  } else if (process.platform === 'darwin') {
+    return path.join(sevenZipDir, '7zip-bin', 'mac', process.arch, '7za');
+  } else {
+    return path.join(sevenZipDir, '7zip-bin', 'linux', process.arch, '7za');
+  }
+}
 
 // 支持的视频格式
 const VIDEO_EXTENSIONS = [
@@ -346,16 +361,38 @@ function list7zContents(archivePath) {
   });
 }
 
-// 解压7z文件到临时目录
+// 解压7z文件到临时目录 - 使用原生7z命令行，支持多线程
 function extract7z(archivePath, destPath) {
   return new Promise((resolve, reject) => {
-    sevenZip.unpack(archivePath, destPath, (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
+    const sevenZipBin = get7zPath();
+    
+    // 检查是否存在原生7z
+    if (fs.existsSync(sevenZipBin)) {
+      // 使用原生7z命令行，启用多线程解压
+      // -mmt=on 启用多线程
+      // -y 自动确认所有询问
+      // -o 指定输出目录
+      const args = ['x', archivePath, `-o${destPath}`, '-y', '-mmt=on'];
+      
+      execFile(sevenZipBin, args, { maxBuffer: 50 * 1024 * 1024 }, (err, stdout, stderr) => {
+        if (err) {
+          // 如果原生命令失败，回退到7zip-min
+          console.warn('原生7z解压失败，使用备用方法:', err.message);
+          sevenZip.unpack(archivePath, destPath, (err2) => {
+            if (err2) reject(err2);
+            else resolve();
+          });
+        } else {
+          resolve();
+        }
+      });
+    } else {
+      // 使用7zip-min作为备用
+      sevenZip.unpack(archivePath, destPath, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    }
   });
 }
 
@@ -396,11 +433,14 @@ function getAllFiles(dir, baseDir = dir) {
 }
 
 // 创建zip文件
-function createZip(files, outputPath) {
+// compressionLevel: 0=store(不压缩,最快), 1=最快压缩, 9=最高压缩(最慢)
+function createZip(files, outputPath, compressionLevel = 1) {
   return new Promise((resolve, reject) => {
     const output = fs.createWriteStream(outputPath);
     const archive = archiver('zip', {
-      zlib: { level: 9 }
+      zlib: { level: compressionLevel },
+      // 使用更大的缓冲区提升IO性能
+      highWaterMark: 1024 * 1024 // 1MB buffer
     });
     
     output.on('close', () => {
@@ -437,7 +477,7 @@ function deleteFolderRecursive(folderPath) {
 }
 
 // 处理7z文件转换
-ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keepOriginal }) => {
+ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keepOriginal, compressionLevel = 1 }) => {
   const results = {
     success: 0,
     failed: 0,
@@ -517,7 +557,7 @@ ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keep
         const zipName = path.basename(file.name, '.7z') + '.zip';
         const zipPath = path.join(path.dirname(file.path), zipName);
         
-        await createZip(nonVideoFiles, zipPath);
+        await createZip(nonVideoFiles, zipPath, compressionLevel);
       }
       
       // 删除原7z文件（如果选择了不保留）

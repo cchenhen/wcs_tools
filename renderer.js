@@ -476,10 +476,14 @@ convertStartBtn.addEventListener('click', async () => {
   });
   
   try {
+    // 获取压缩级别设置
+    const compressionLevel = parseInt(document.getElementById('convert-compressionLevel').value, 10);
+    
     const result = await window.electronAPI.convert7zToZip({
       files: selectedFiles,
       videoOutputPath: convertVideoPath.value,
-      keepOriginal: convertKeepOriginal.checked
+      keepOriginal: convertKeepOriginal.checked,
+      compressionLevel: compressionLevel
     });
     
     // 显示结果
