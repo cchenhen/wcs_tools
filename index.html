@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>多功能文件工具</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🛠️ 多功能文件工具</h1>
+      <p class="subtitle">视频快捷方式提取 & 7z转ZIP转换</p>
+    </header>
+
+    <!-- 工具选项卡 -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="shortcut">🎬 视频快捷方式</button>
+      <button class="tab-btn" data-tab="convert">📦 7z转ZIP</button>
+    </div>
+
+    <!-- 视频快捷方式工具 -->
+    <div id="shortcut-tool" class="tool-content active">
+      <main>
+        <!-- 步骤 1: 选择源文件夹 -->
+        <section class="card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <h2>选择源文件夹</h2>
+          </div>
+          <div class="folder-selector">
+            <input type="text" id="sourcePath" placeholder="请选择包含视频文件的文件夹..." readonly>
+            <button id="selectSourceBtn" class="btn btn-primary">浏览...</button>
+          </div>
+          <button id="scanBtn" class="btn btn-secondary" disabled>扫描视频文件</button>
+        </section>
+
+        <!-- 步骤 2: 视频文件列表 -->
+        <section class="card" id="videoListSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">2</span>
+            <h2>扫描结果</h2>
+          </div>
+          <div class="video-stats">
+            <span id="videoCount">共找到 0 个视频文件</span>
+            <div class="select-actions">
+              <button id="selectAllBtn" class="btn btn-small">全选</button>
+              <button id="deselectAllBtn" class="btn btn-small">取消全选</button>
+            </div>
+          </div>
+          <div class="video-list" id="videoList">
+            <!-- 视频列表将在这里动态生成 -->
+          </div>
+        </section>
+
+        <!-- 步骤 3: 选择目标文件夹和命名方式 -->
+        <section class="card" id="targetSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">3</span>
+            <h2>设置输出选项</h2>
+          </div>
+          
+          <div class="option-group">
+            <label>目标文件夹</label>
+            <div class="folder-selector">
+              <input type="text" id="targetPath" placeholder="请选择保存快捷方式的文件夹..." readonly>
+              <button id="selectTargetBtn" class="btn btn-primary">浏览...</button>
+            </div>
+          </div>
+
+          <div class="option-group">
+            <label>命名方式</label>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="namingMode" value="folder" checked>
+                <span class="radio-text">文件夹名_文件名</span>
+                <span class="radio-hint">例如: Movies_video1.mp4</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="namingMode" value="folderOnly">
+                <span class="radio-text">仅文件夹名</span>
+                <span class="radio-hint">例如: Movies.mp4 (同名自动编号)</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="namingMode" value="original">
+                <span class="radio-text">保持原文件名</span>
+                <span class="radio-hint">例如: video1.mp4</span>
+              </label>
+            </div>
+          </div>
+
+          <button id="createBtn" class="btn btn-success btn-large" disabled>
+            🚀 创建快捷方式
+          </button>
+        </section>
+
+        <!-- 进度条 -->
+        <section class="card" id="progressSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">⏳</span>
+            <h2>正在处理...</h2>
+          </div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text">
+              <span id="progressText">0%</span>
+              <span id="currentFile"></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 完成结果 -->
+        <section class="card" id="resultSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">✅</span>
+            <h2>处理完成</h2>
+          </div>
+          <div class="result-summary">
+            <div class="result-item success">
+              <span class="result-icon">✓</span>
+              <span>成功: <strong id="successCount">0</strong> 个</span>
+            </div>
+            <div class="result-item failed" id="failedResult" style="display: none;">
+              <span class="result-icon">✗</span>
+              <span>失败: <strong id="failedCount">0</strong> 个</span>
+            </div>
+          </div>
+          <div class="result-actions">
+            <button id="openFolderBtn" class="btn btn-primary">打开目标文件夹</button>
+            <button id="resetBtn" class="btn btn-secondary">重新开始</button>
+          </div>
+          <div class="error-list" id="errorList" style="display: none;">
+            <h4>错误详情:</h4>
+            <ul id="errorListContent"></ul>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 7z转ZIP工具 -->
+    <div id="convert-tool" class="tool-content">
+      <main>
+        <!-- 步骤 1: 选择7z文件所在文件夹 -->
+        <section class="card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <h2>选择7z文件所在文件夹</h2>
+          </div>
+          <div class="folder-selector">
+            <input type="text" id="convert-sourcePath" placeholder="请选择包含7z文件的文件夹..." readonly>
+            <button id="convert-selectSourceBtn" class="btn btn-primary">浏览...</button>
+          </div>
+          <button id="convert-scanBtn" class="btn btn-secondary" disabled>扫描7z文件</button>
+        </section>
+
+        <!-- 步骤 2: 7z文件列表 -->
+        <section class="card" id="convert-fileListSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">2</span>
+            <h2>扫描结果</h2>
+          </div>
+          <div class="video-stats">
+            <span id="convert-fileCount">共找到 0 个7z文件</span>
+            <div class="select-actions">
+              <button id="convert-selectAllBtn" class="btn btn-small">全选</button>
+              <button id="convert-deselectAllBtn" class="btn btn-small">取消全选</button>
+            </div>
+          </div>
+          <div class="video-list" id="convert-fileList">
+            <!-- 7z文件列表将在这里动态生成 -->
+          </div>
+        </section>
+
+        <!-- 步骤 3: 设置输出选项 -->
+        <section class="card" id="convert-targetSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">3</span>
+            <h2>设置输出选项</h2>
+          </div>
+          
+          <div class="option-group">
+            <label>视频文件提取目录</label>
+            <div class="folder-selector">
+              <input type="text" id="convert-videoPath" placeholder="请选择视频文件存放的文件夹..." readonly>
+              <button id="convert-selectVideoBtn" class="btn btn-primary">浏览...</button>
+            </div>
+            <p class="option-hint">📹 所有视频文件将被提取到此目录</p>
+          </div>
+
+          <div class="option-group">
+            <label class="checkbox-inline">
+              <input type="checkbox" id="convert-keepOriginal">
+              <span>保留原始7z文件</span>
+            </label>
+          </div>
+
+          <div class="info-box">
+            <h4>📋 转换说明：</h4>
+            <ul>
+              <li>📦 每个7z文件将转换为同名的zip文件</li>
+              <li>🖼️ 图片和其他非视频文件保留在zip中</li>
+              <li>📹 视频文件将被提取到指定的视频目录</li>
+              <li>✨ zip文件将保存在原7z文件所在目录</li>
+            </ul>
+          </div>
+
+          <button id="convert-startBtn" class="btn btn-success btn-large" disabled>
+            🔄 开始转换
+          </button>
+        </section>
+
+        <!-- 进度条 -->
+        <section class="card" id="convert-progressSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">⏳</span>
+            <h2>正在转换...</h2>
+          </div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill" id="convert-progressFill"></div>
+            </div>
+            <div class="progress-text">
+              <span id="convert-progressText">0%</span>
+              <span id="convert-currentFile"></span>
+            </div>
+            <div class="stage-info" id="convert-stage"></div>
+          </div>
+        </section>
+
+        <!-- 完成结果 -->
+        <section class="card" id="convert-resultSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">✅</span>
+            <h2>转换完成</h2>
+          </div>
+          <div class="result-summary">
+            <div class="result-item success">
+              <span class="result-icon">✓</span>
+              <span>成功转换: <strong id="convert-successCount">0</strong> 个文件</span>
+            </div>
+            <div class="result-item info">
+              <span class="result-icon">📹</span>
+              <span>提取视频: <strong id="convert-videoCount">0</strong> 个</span>
+            </div>
+            <div class="result-item failed" id="convert-failedResult" style="display: none;">
+              <span class="result-icon">✗</span>
+              <span>失败: <strong id="convert-failedCount">0</strong> 个</span>
+            </div>
+          </div>
+          <div class="result-actions">
+            <button id="convert-openVideoBtn" class="btn btn-primary">打开视频文件夹</button>
+            <button id="convert-resetBtn" class="btn btn-secondary">重新开始</button>
+          </div>
+          <div class="error-list" id="convert-errorList" style="display: none;">
+            <h4>错误详情:</h4>
+            <ul id="convert-errorListContent"></ul>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <footer>
+      <p>支持格式: MP4, AVI, MKV, MOV, WMV, FLV, WebM 等</p>
+      <p id="platformInfo"></p>
+    </footer>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
