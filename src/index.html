@@ -1,16 +1,19 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
   <title>多功能文件工具</title>
 </head>
+
 <body>
   <div class="container">
     <header>
       <h1>🛠️ 多功能文件工具</h1>
-      <p class="subtitle">视频快捷方式提取 & 7z转ZIP & 图片打包</p>
+      <p class="subtitle">视频快捷方式提取 &amp; 7z转ZIP &amp; 图片打包 &amp; TXT转EPUB</p>
     </header>
 
     <!-- 工具选项卡 -->
@@ -18,6 +21,7 @@
       <button class="tab-btn active" data-tab="shortcut">🎬 视频快捷方式</button>
       <button class="tab-btn" data-tab="convert">📦 7z转ZIP</button>
       <button class="tab-btn" data-tab="imagezip">🖼️ 图片打包</button>
+      <button class="tab-btn" data-tab="txt2epub">📚 TXT转EPUB</button>
     </div>
 
     <!-- 视频快捷方式工具 -->
@@ -60,7 +64,7 @@
             <span class="step-number">3</span>
             <h2>设置输出选项</h2>
           </div>
-          
+
           <div class="option-group">
             <label>目标文件夹</label>
             <div class="folder-selector">
@@ -180,7 +184,7 @@
             <span class="step-number">3</span>
             <h2>设置输出选项</h2>
           </div>
-          
+
           <div class="option-group">
             <label>视频文件提取目录</label>
             <div class="folder-selector">
@@ -313,7 +317,7 @@
             <span class="step-number">3</span>
             <h2>设置输出选项</h2>
           </div>
-          
+
           <div class="option-group">
             <label>ZIP文件输出目录</label>
             <div class="folder-selector">
@@ -398,6 +402,147 @@
       </main>
     </div>
 
+    <!-- TXT转EPUB工具 -->
+    <div id="txt2epub-tool" class="tool-content">
+      <main>
+        <!-- 步骤 1: 选择TXT文件 -->
+        <section class="card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <h2>选择TXT文件</h2>
+          </div>
+          <div class="folder-selector">
+            <input type="text" id="txt2epub-sourcePath" placeholder="请选择TXT文件所在的文件夹..." readonly>
+            <button id="txt2epub-selectSourceBtn" class="btn btn-primary">浏览文件夹...</button>
+          </div>
+          <div class="btn-group">
+            <button id="txt2epub-scanBtn" class="btn btn-secondary" disabled>扫描TXT文件</button>
+            <span class="btn-divider">或</span>
+            <button id="txt2epub-selectFileBtn" class="btn btn-secondary">选择单个文件</button>
+          </div>
+        </section>
+
+        <!-- 步骤 2: TXT文件列表 -->
+        <section class="card" id="txt2epub-fileListSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">2</span>
+            <h2>扫描结果</h2>
+          </div>
+          <div class="video-stats">
+            <span id="txt2epub-fileCount">共找到 0 个TXT文件</span>
+            <div class="select-actions">
+              <button id="txt2epub-selectAllBtn" class="btn btn-small">全选</button>
+              <button id="txt2epub-deselectAllBtn" class="btn btn-small">取消全选</button>
+              <button id="txt2epub-previewBtn" class="btn btn-small btn-info">预览章节</button>
+            </div>
+          </div>
+          <div class="video-list" id="txt2epub-fileList">
+            <!-- TXT文件列表将在这里动态生成 -->
+          </div>
+        </section>
+
+        <!-- 章节预览模态框 -->
+        <div id="txt2epub-previewModal" class="modal" style="display: none;">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>📖 章节预览</h3>
+              <button id="txt2epub-closePreviewBtn" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div id="txt2epub-previewFile" class="preview-filename"></div>
+              <div id="txt2epub-previewStats" class="preview-stats"></div>
+              <div id="txt2epub-chapterList" class="chapter-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 步骤 3: 设置输出选项 -->
+        <section class="card" id="txt2epub-targetSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">3</span>
+            <h2>设置输出选项</h2>
+          </div>
+
+          <div class="option-group">
+            <label>EPUB输出目录</label>
+            <div class="folder-selector">
+              <input type="text" id="txt2epub-targetPath" placeholder="请选择EPUB文件保存位置..." readonly>
+              <button id="txt2epub-selectTargetBtn" class="btn btn-primary">浏览...</button>
+            </div>
+          </div>
+
+          <div class="option-group">
+            <label>作者名称</label>
+            <input type="text" id="txt2epub-author" class="form-input" placeholder="请输入作者名称（可选）">
+          </div>
+
+          <div class="option-group">
+            <label>自定义章节匹配规则（正则表达式，可选）</label>
+            <input type="text" id="txt2epub-customPattern" class="form-input" placeholder="例如: ^第\d+章">
+            <p class="option-hint">💡 留空时使用默认规则，自动识别常见章节格式（如：第X章、第X节、Chapter X等）</p>
+          </div>
+
+          <div class="info-box">
+            <h4>📋 转换说明：</h4>
+            <ul>
+              <li>📖 自动识别章节标题并分割</li>
+              <li>🔤 支持UTF-8、GBK、UTF-16等编码</li>
+              <li>📑 生成带有目录的标准EPUB文件</li>
+              <li>✨ 可在Kindle、Apple Books等阅读器中阅读</li>
+            </ul>
+          </div>
+
+          <button id="txt2epub-startBtn" class="btn btn-success btn-large" disabled>
+            📚 开始转换
+          </button>
+        </section>
+
+        <!-- 进度条 -->
+        <section class="card" id="txt2epub-progressSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">⏳</span>
+            <h2>正在转换...</h2>
+          </div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill" id="txt2epub-progressFill"></div>
+            </div>
+            <div class="progress-text">
+              <span id="txt2epub-progressText">0%</span>
+              <span id="txt2epub-currentFile"></span>
+            </div>
+            <div class="stage-info" id="txt2epub-stage"></div>
+          </div>
+        </section>
+
+        <!-- 完成结果 -->
+        <section class="card" id="txt2epub-resultSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">✅</span>
+            <h2>转换完成</h2>
+          </div>
+          <div class="result-summary">
+            <div class="result-item success">
+              <span class="result-icon">✓</span>
+              <span>成功转换: <strong id="txt2epub-successCount">0</strong> 个文件</span>
+            </div>
+            <div class="result-item failed" id="txt2epub-failedResult" style="display: none;">
+              <span class="result-icon">✗</span>
+              <span>失败: <strong id="txt2epub-failedCount">0</strong> 个</span>
+            </div>
+          </div>
+          <div class="result-actions">
+            <button id="txt2epub-openFolderBtn" class="btn btn-primary">打开输出文件夹</button>
+            <button id="txt2epub-resetBtn" class="btn btn-secondary">重新开始</button>
+          </div>
+          <div class="error-list" id="txt2epub-errorList" style="display: none;">
+            <h4>错误详情:</h4>
+            <ul id="txt2epub-errorListContent"></ul>
+          </div>
+        </section>
+      </main>
+    </div>
+
     <!-- 任务队列面板 -->
     <div id="taskQueuePanel" class="task-queue-panel">
       <div class="task-queue-header">
@@ -420,4 +565,5 @@
     </footer>
   </div>
 </body>
+
 </html>

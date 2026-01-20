@@ -1193,3 +1193,397 @@ ipcMain.handle('pack-images-to-zip', async (event, { folders, targetPath, compre
   
   return results;
 });
+
+// ============ TXT转EPUB工具相关功能 ============
+
+// 常见的章节标题正则表达式模式
+const CHAPTER_PATTERNS = [
+  // 中文章节模式
+  /^第[一二三四五六七八九十百千万零\d]+[章节卷部篇回集话]/,
+  /^[第]?[\d一二三四五六七八九十百千万零]+[、.．:：\s]+/,
+  /^【.+?】$/,
+  /^卷[一二三四五六七八九十\d]+/,
+  /^Chapter\s*\d+/i,
+  /^CHAPTER\s*\d+/i,
+  /^序[章言幕]?$/,
+  /^楔子$/,
+  /^引子$/,
+  /^尾声$/,
+  /^番外/,
+  /^正文$/,
+];
+
+// 检测文件编码
+function detectEncoding(buffer) {
+  // 检查BOM
+  if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
+    return 'utf-8';
+  }
+  if (buffer[0] === 0xFF && buffer[1] === 0xFE) {
+    return 'utf-16le';
+  }
+  if (buffer[0] === 0xFE && buffer[1] === 0xFF) {
+    return 'utf-16be';
+  }
+  
+  // 简单的GBK/UTF-8检测
+  let utf8Score = 0;
+  let gbkScore = 0;
+  
+  for (let i = 0; i < Math.min(buffer.length, 1000); i++) {
+    if (buffer[i] >= 0x80) {
+      // 检查UTF-8多字节序列
+      if ((buffer[i] & 0xE0) === 0xC0 && i + 1 < buffer.length && (buffer[i + 1] & 0xC0) === 0x80) {
+        utf8Score++;
+        i++;
+      } else if ((buffer[i] & 0xF0) === 0xE0 && i + 2 < buffer.length && (buffer[i + 1] & 0xC0) === 0x80 && (buffer[i + 2] & 0xC0) === 0x80) {
+        utf8Score += 2;
+        i += 2;
+      } else {
+        gbkScore++;
+      }
+    }
+  }
+  
+  return utf8Score > gbkScore ? 'utf-8' : 'gbk';
+}
+
+// 读取TXT文件内容
+function readTxtFile(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  const encoding = detectEncoding(buffer);
+  
+  let content;
+  if (encoding === 'utf-8') {
+    // 移除BOM
+    content = buffer.toString('utf-8').replace(/^\uFEFF/, '');
+  } else if (encoding === 'utf-16le') {
+    content = buffer.toString('utf-16le').replace(/^\uFEFF/, '');
+  } else if (encoding === 'utf-16be') {
+    // Node.js不直接支持utf-16be，需要手动转换
+    const utf16le = Buffer.alloc(buffer.length - 2);
+    for (let i = 2; i < buffer.length; i += 2) {
+      utf16le[i - 2] = buffer[i + 1];
+      utf16le[i - 1] = buffer[i];
+    }
+    content = utf16le.toString('utf-16le');
+  } else {
+    // GBK编码
+    const iconv = require('iconv-lite');
+    content = iconv.decode(buffer, 'gbk');
+  }
+  
+  return content;
+}
+
+// 判断是否为章节标题
+function isChapterTitle(line, customPattern = null) {
+  const trimmedLine = line.trim();
+  
+  // 空行不是章节
+  if (!trimmedLine) return false;
+  
+  // 太长的行不太可能是章节标题
+  if (trimmedLine.length > 50) return false;
+  
+  // 自定义模式
+  if (customPattern) {
+    try {
+      const regex = new RegExp(customPattern);
+      if (regex.test(trimmedLine)) return true;
+    } catch (e) {
+      // 正则表达式无效，忽略
+    }
+  }
+  
+  // 使用预定义模式
+  for (const pattern of CHAPTER_PATTERNS) {
+    if (pattern.test(trimmedLine)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// 解析TXT内容为章节
+function parseChapters(content, customPattern = null) {
+  const lines = content.split(/\r?\n/);
+  const chapters = [];
+  let currentChapter = null;
+  let currentContent = [];
+  
+  for (const line of lines) {
+    if (isChapterTitle(line, customPattern)) {
+      // 保存之前的章节
+      if (currentChapter !== null) {
+        chapters.push({
+          title: currentChapter,
+          content: currentContent.join('\n').trim()
+        });
+      }
+      // 开始新章节
+      currentChapter = line.trim();
+      currentContent = [];
+    } else {
+      currentContent.push(line);
+    }
+  }
+  
+  // 处理最后一章
+  if (currentChapter !== null) {
+    chapters.push({
+      title: currentChapter,
+      content: currentContent.join('\n').trim()
+    });
+  } else if (currentContent.length > 0) {
+    // 没有检测到任何章节，将整个内容作为一个章节
+    chapters.push({
+      title: '正文',
+      content: currentContent.join('\n').trim()
+    });
+  }
+  
+  return chapters;
+}
+
+// 将文本内容转换为HTML
+function contentToHtml(content) {
+  // 分割段落并转换为HTML
+  const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim());
+  
+  const htmlParagraphs = paragraphs.map(p => {
+    // 处理段落内的换行
+    const lines = p.split('\n').filter(l => l.trim());
+    return lines.map(line => `<p>${escapeHtml(line.trim())}</p>`).join('\n');
+  });
+  
+  return htmlParagraphs.join('\n');
+}
+
+// HTML转义
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// 扫描TXT文件
+function scanTxtFiles(dir) {
+  const files = [];
+  
+  try {
+    const items = fs.readdirSync(dir);
+    
+    for (const item of items) {
+      const fullPath = path.join(dir, item);
+      
+      try {
+        const stat = fs.statSync(fullPath);
+        
+        if (stat.isFile() && path.extname(item).toLowerCase() === '.txt') {
+          files.push({
+            name: item,
+            path: fullPath,
+            size: stat.size
+          });
+        }
+      } catch (err) {
+        console.error(`无法访问 ${fullPath}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error(`无法读取目录 ${dir}:`, err.message);
+  }
+  
+  return files;
+}
+
+// 预览章节解析结果
+function previewChapters(filePath, customPattern = null) {
+  try {
+    const content = readTxtFile(filePath);
+    const chapters = parseChapters(content, customPattern);
+    
+    // 返回章节概要
+    return {
+      success: true,
+      totalChapters: chapters.length,
+      chapters: chapters.map((ch, index) => ({
+        index: index + 1,
+        title: ch.title,
+        contentLength: ch.content.length,
+        preview: ch.content.substring(0, 100) + (ch.content.length > 100 ? '...' : '')
+      }))
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+}
+
+// 转换TXT到EPUB
+async function convertTxtToEpub(txtFile, outputPath, options = {}) {
+  const {
+    bookTitle = path.basename(txtFile.name, '.txt'),
+    author = '未知作者',
+    customPattern = null
+  } = options;
+  
+  try {
+    const content = readTxtFile(txtFile.path);
+    const chapters = parseChapters(content, customPattern);
+    
+    if (chapters.length === 0) {
+      throw new Error('未能解析出任何章节');
+    }
+    
+    // 准备EPUB内容
+    const epubContent = chapters.map((ch, index) => ({
+      title: ch.title,
+      data: `
+        <html>
+          <head>
+            <title>${escapeHtml(ch.title)}</title>
+            <style>
+              body { font-family: serif; line-height: 1.8; padding: 20px; }
+              h1 { text-align: center; margin-bottom: 30px; }
+              p { text-indent: 2em; margin: 0.8em 0; }
+            </style>
+          </head>
+          <body>
+            <h1>${escapeHtml(ch.title)}</h1>
+            ${contentToHtml(ch.content)}
+          </body>
+        </html>
+      `
+    }));
+    
+    // 使用epub-gen-memory生成EPUB
+    const epub = require('epub-gen-memory').default;
+    
+    const epubBuffer = await epub({
+      title: bookTitle,
+      author: author,
+      content: epubContent,
+      css: `
+        body { font-family: serif; line-height: 1.8; }
+        h1 { text-align: center; margin-bottom: 30px; font-size: 1.5em; }
+        p { text-indent: 2em; margin: 0.8em 0; }
+      `
+    });
+    
+    // 生成输出文件名
+    let epubName = `${bookTitle}.epub`;
+    let epubPath = path.join(outputPath, epubName);
+    let counter = 1;
+    
+    while (fs.existsSync(epubPath)) {
+      epubName = `${bookTitle}_${counter}.epub`;
+      epubPath = path.join(outputPath, epubName);
+      counter++;
+    }
+    
+    // 写入文件
+    fs.writeFileSync(epubPath, epubBuffer);
+    
+    return {
+      success: true,
+      outputPath: epubPath,
+      chaptersCount: chapters.length
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+}
+
+// 扫描TXT文件
+ipcMain.handle('scan-txt-files', async (event, sourcePath) => {
+  return scanTxtFiles(sourcePath);
+});
+
+// 预览章节
+ipcMain.handle('preview-txt-chapters', async (event, { filePath, customPattern }) => {
+  return previewChapters(filePath, customPattern);
+});
+
+// 选择TXT文件
+ipcMain.handle('select-txt-file', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [{ name: 'TXT文件', extensions: ['txt'] }],
+    title: '选择TXT文件'
+  });
+  
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  
+  const filePath = result.filePaths[0];
+  const stat = fs.statSync(filePath);
+  
+  return {
+    name: path.basename(filePath),
+    path: filePath,
+    size: stat.size
+  };
+});
+
+// 转换TXT到EPUB
+ipcMain.handle('convert-txt-to-epub', async (event, { files, outputPath, options }) => {
+  const results = {
+    success: 0,
+    failed: 0,
+    errors: []
+  };
+  
+  // 确保输出目录存在
+  if (!fs.existsSync(outputPath)) {
+    fs.mkdirSync(outputPath, { recursive: true });
+  }
+  
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    
+    try {
+      // 发送进度
+      mainWindow.webContents.send('txt2epub-progress', {
+        current: i + 1,
+        total: files.length,
+        currentFile: file.name,
+        stage: 'converting'
+      });
+      
+      const result = await convertTxtToEpub(file, outputPath, {
+        ...options,
+        bookTitle: options.bookTitle || path.basename(file.name, '.txt')
+      });
+      
+      if (result.success) {
+        results.success++;
+      } else {
+        results.failed++;
+        results.errors.push({
+          file: file.name,
+          error: result.error
+        });
+      }
+    } catch (err) {
+      results.failed++;
+      results.errors.push({
+        file: file.name,
+        error: err.message
+      });
+    }
+  }
+  
+  return results;
+});

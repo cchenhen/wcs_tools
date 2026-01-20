@@ -8,11 +8,11 @@ const toolContents = document.querySelectorAll('.tool-content');
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => {
     const tabId = btn.dataset.tab;
-    
+
     // 更新按钮状态
     tabBtns.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    
+
     // 更新内容显示
     toolContents.forEach(content => content.classList.remove('active'));
     document.getElementById(`${tabId}-tool`).classList.add('active');
@@ -106,25 +106,25 @@ selectTargetBtn.addEventListener('click', async () => {
 scanBtn.addEventListener('click', async () => {
   scanBtn.disabled = true;
   scanBtn.textContent = '扫描中...';
-  
+
   try {
     scannedVideos = await window.electronAPI.scanVideos(sourcePath.value);
-    
+
     // 显示结果
     videoListSection.style.display = 'block';
     targetSection.style.display = 'block';
-    
+
     // 默认将目标文件夹设置为源文件夹下的"视频快捷方式"子文件夹
     if (!targetPath.value) {
       const separator = sourcePath.value.includes('\\') ? '\\' : '/';
       targetPath.value = sourcePath.value + separator + '视频快捷方式';
     }
-    
+
     videoCount.textContent = `共找到 ${scannedVideos.length} 个视频文件`;
-    
+
     // 渲染视频列表
     renderVideoList();
-    
+
   } catch (error) {
     alert('扫描出错: ' + error.message);
   } finally {
@@ -136,12 +136,12 @@ scanBtn.addEventListener('click', async () => {
 // 渲染视频列表
 function renderVideoList() {
   videoList.innerHTML = '';
-  
+
   if (scannedVideos.length === 0) {
     videoList.innerHTML = '<div class="no-videos">未找到视频文件</div>';
     return;
   }
-  
+
   scannedVideos.forEach((video, index) => {
     const item = document.createElement('div');
     item.className = 'video-item';
@@ -159,7 +159,7 @@ function renderVideoList() {
     `;
     videoList.appendChild(item);
   });
-  
+
   updateCreateButtonState();
 }
 
@@ -187,7 +187,7 @@ function updateCreateButtonState() {
   const checkedCount = document.querySelectorAll('.video-checkbox:checked').length;
   const hasTarget = targetPath.value.trim() !== '';
   createBtn.disabled = checkedCount === 0 || !hasTarget;
-  
+
   if (checkedCount > 0) {
     createBtn.textContent = `🚀 创建 ${checkedCount} 个快捷方式`;
   } else {
@@ -203,15 +203,15 @@ createBtn.addEventListener('click', async () => {
     const index = parseInt(cb.dataset.index);
     selectedVideos.push(scannedVideos[index]);
   });
-  
+
   if (selectedVideos.length === 0) {
     alert('请至少选择一个视频文件');
     return;
   }
-  
+
   // 获取命名方式
   const namingMode = document.querySelector('input[name="namingMode"]:checked').value;
-  
+
   try {
     // 添加任务到队列
     const taskId = await window.electronAPI.taskQueueAdd(
@@ -223,13 +223,13 @@ createBtn.addEventListener('click', async () => {
       },
       `创建 ${selectedVideos.length} 个视频快捷方式`
     );
-    
+
     // 显示成功提示
     alert(`任务已添加到队列！\n任务ID: ${taskId}\n请查看任务队列面板了解进度。`);
-    
+
     // 可以选择重置界面或保持当前状态
     // resetBtn.click();
-    
+
   } catch (error) {
     alert('添加任务失败: ' + error.message);
   }
@@ -319,25 +319,25 @@ convertSelectVideoBtn.addEventListener('click', async () => {
 convertScanBtn.addEventListener('click', async () => {
   convertScanBtn.disabled = true;
   convertScanBtn.textContent = '扫描中...';
-  
+
   try {
     scanned7zFiles = await window.electronAPI.scan7zFiles(convertSourcePath.value);
-    
+
     // 显示结果
     convertFileListSection.style.display = 'block';
     convertTargetSection.style.display = 'block';
-    
+
     // 默认将视频输出文件夹设置为源文件夹下的"提取的视频"子文件夹
     if (!convertVideoPath.value) {
       const separator = convertSourcePath.value.includes('\\') ? '\\' : '/';
       convertVideoPath.value = convertSourcePath.value + separator + '提取的视频';
     }
-    
+
     convertFileCount.textContent = `共找到 ${scanned7zFiles.length} 个7z文件`;
-    
+
     // 渲染7z文件列表
     render7zFileList();
-    
+
   } catch (error) {
     alert('扫描出错: ' + error.message);
   } finally {
@@ -349,12 +349,12 @@ convertScanBtn.addEventListener('click', async () => {
 // 渲染7z文件列表
 function render7zFileList() {
   convertFileList.innerHTML = '';
-  
+
   if (scanned7zFiles.length === 0) {
     convertFileList.innerHTML = '<div class="no-videos">未找到7z文件</div>';
     return;
   }
-  
+
   scanned7zFiles.forEach((file, index) => {
     const item = document.createElement('div');
     item.className = 'video-item';
@@ -371,7 +371,7 @@ function render7zFileList() {
     `;
     convertFileList.appendChild(item);
   });
-  
+
   updateConvertButtonState();
 }
 
@@ -399,7 +399,7 @@ function updateConvertButtonState() {
   const checkedCount = document.querySelectorAll('.file-checkbox:checked').length;
   const hasVideoPath = convertVideoPath.value.trim() !== '';
   convertStartBtn.disabled = checkedCount === 0 || !hasVideoPath;
-  
+
   if (checkedCount > 0) {
     convertStartBtn.textContent = `🔄 转换 ${checkedCount} 个文件`;
   } else {
@@ -429,16 +429,16 @@ convertStartBtn.addEventListener('click', async () => {
     const index = parseInt(cb.dataset.index);
     selectedFiles.push(scanned7zFiles[index]);
   });
-  
+
   if (selectedFiles.length === 0) {
     alert('请至少选择一个7z文件');
     return;
   }
-  
+
   try {
     // 获取压缩级别设置
     const compressionLevel = parseInt(document.getElementById('convert-compressionLevel').value, 10);
-    
+
     // 添加任务到队列
     const taskId = await window.electronAPI.taskQueueAdd(
       'convert-7z-to-zip',
@@ -450,10 +450,10 @@ convertStartBtn.addEventListener('click', async () => {
       },
       `转换 ${selectedFiles.length} 个7z文件`
     );
-    
+
     // 显示成功提示
     alert(`任务已添加到队列！\n任务ID: ${taskId}\n请查看任务队列面板了解进度。`);
-    
+
   } catch (error) {
     alert('添加任务失败: ' + error.message);
   }
@@ -542,25 +542,25 @@ imagezipSelectTargetBtn.addEventListener('click', async () => {
 imagezipScanBtn.addEventListener('click', async () => {
   imagezipScanBtn.disabled = true;
   imagezipScanBtn.textContent = '扫描中...';
-  
+
   try {
     scannedImageFolders = await window.electronAPI.scanImageFolders(imagezipSourcePath.value);
-    
+
     // 显示结果
     imagezipFolderListSection.style.display = 'block';
     imagezipTargetSection.style.display = 'block';
-    
+
     // 默认将输出文件夹设置为源文件夹下的"打包的图片"子文件夹
     if (!imagezipTargetPath.value) {
       const separator = imagezipSourcePath.value.includes('\\') ? '\\' : '/';
       imagezipTargetPath.value = imagezipSourcePath.value + separator + '打包的图片';
     }
-    
+
     imagezipFolderCount.textContent = `共找到 ${scannedImageFolders.length} 个包含图片的子文件夹`;
-    
+
     // 渲染文件夹列表
     renderImageFolderList();
-    
+
   } catch (error) {
     alert('扫描出错: ' + error.message);
   } finally {
@@ -572,12 +572,12 @@ imagezipScanBtn.addEventListener('click', async () => {
 // 渲染图片文件夹列表
 function renderImageFolderList() {
   imagezipFolderList.innerHTML = '';
-  
+
   if (scannedImageFolders.length === 0) {
     imagezipFolderList.innerHTML = '<div class="no-videos">未找到包含图片的子文件夹</div>';
     return;
   }
-  
+
   scannedImageFolders.forEach((folder, index) => {
     const item = document.createElement('div');
     item.className = 'video-item';
@@ -595,7 +595,7 @@ function renderImageFolderList() {
     `;
     imagezipFolderList.appendChild(item);
   });
-  
+
   updateImageZipButtonState();
 }
 
@@ -623,7 +623,7 @@ function updateImageZipButtonState() {
   const checkedCount = document.querySelectorAll('.imagezip-checkbox:checked').length;
   const hasTargetPath = imagezipTargetPath.value.trim() !== '';
   imagezipStartBtn.disabled = checkedCount === 0 || !hasTargetPath;
-  
+
   if (checkedCount > 0) {
     imagezipStartBtn.textContent = `📦 打包 ${checkedCount} 个文件夹`;
   } else {
@@ -639,16 +639,16 @@ imagezipStartBtn.addEventListener('click', async () => {
     const index = parseInt(cb.dataset.index);
     selectedFolders.push(scannedImageFolders[index]);
   });
-  
+
   if (selectedFolders.length === 0) {
     alert('请至少选择一个文件夹');
     return;
   }
-  
+
   try {
     // 获取压缩级别设置
     const compressionLevel = parseInt(imagezipCompressionLevel.value, 10);
-    
+
     // 添加任务到队列
     const taskId = await window.electronAPI.taskQueueAdd(
       'pack-images',
@@ -659,10 +659,10 @@ imagezipStartBtn.addEventListener('click', async () => {
       },
       `打包 ${selectedFolders.length} 个图片文件夹`
     );
-    
+
     // 显示成功提示
     alert(`任务已添加到队列！\n任务ID: ${taskId}\n请查看任务队列面板了解进度。`);
-    
+
   } catch (error) {
     alert('添加任务失败: ' + error.message);
   }
@@ -746,16 +746,16 @@ function formatTime(timestamp) {
   const date = new Date(timestamp);
   const now = new Date();
   const diff = now - date;
-  
+
   if (diff < 60000) return '刚刚';
   if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
-  
-  return date.toLocaleString('zh-CN', { 
-    month: '2-digit', 
-    day: '2-digit', 
-    hour: '2-digit', 
-    minute: '2-digit' 
+
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
   });
 }
 
@@ -765,18 +765,18 @@ function renderTaskList(tasks) {
     taskList.innerHTML = '<div class="task-empty">暂无任务</div>';
     return;
   }
-  
+
   taskList.innerHTML = '';
-  
+
   tasks.forEach(task => {
     const status = formatTaskStatus(task.status);
     const taskType = formatTaskType(task.type);
     const timeStr = formatTime(task.createdAt);
-    
+
     const taskItem = document.createElement('div');
     taskItem.className = `task-item task-${status.class}`;
     taskItem.dataset.taskId = task.id;
-    
+
     let progressHTML = '';
     if (task.status === 'running') {
       progressHTML = `
@@ -786,7 +786,7 @@ function renderTaskList(tasks) {
         <div class="task-progress-text">${task.progress}%</div>
       `;
     }
-    
+
     let resultHTML = '';
     if (task.status === 'completed' && task.result) {
       const r = task.result;
@@ -794,14 +794,14 @@ function renderTaskList(tasks) {
     } else if (task.status === 'failed') {
       resultHTML = `<div class="task-error">${task.error}</div>`;
     }
-    
+
     let actionsHTML = '';
     if (task.status === 'pending') {
       actionsHTML = `
         <button class="task-btn-cancel" data-task-id="${task.id}">取消</button>
       `;
     }
-    
+
     taskItem.innerHTML = `
       <div class="task-header">
         <span class="task-status-icon">${status.icon}</span>
@@ -820,10 +820,10 @@ function renderTaskList(tasks) {
       ${progressHTML}
       ${resultHTML}
     `;
-    
+
     taskList.appendChild(taskItem);
   });
-  
+
   // 绑定取消按钮事件
   taskList.querySelectorAll('.task-btn-cancel').forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -854,3 +854,344 @@ window.electronAPI.onTaskListUpdate((tasks) => {
 // 初始化时加载任务列表
 window.electronAPI.taskQueueGetAll().then(renderTaskList);
 
+// ============ TXT转EPUB工具 ============
+
+// 获取DOM元素
+const txt2epubSelectSourceBtn = document.getElementById('txt2epub-selectSourceBtn');
+const txt2epubSourcePath = document.getElementById('txt2epub-sourcePath');
+const txt2epubScanBtn = document.getElementById('txt2epub-scanBtn');
+const txt2epubSelectFileBtn = document.getElementById('txt2epub-selectFileBtn');
+const txt2epubFileListSection = document.getElementById('txt2epub-fileListSection');
+const txt2epubFileList = document.getElementById('txt2epub-fileList');
+const txt2epubFileCount = document.getElementById('txt2epub-fileCount');
+const txt2epubSelectAllBtn = document.getElementById('txt2epub-selectAllBtn');
+const txt2epubDeselectAllBtn = document.getElementById('txt2epub-deselectAllBtn');
+const txt2epubPreviewBtn = document.getElementById('txt2epub-previewBtn');
+const txt2epubTargetSection = document.getElementById('txt2epub-targetSection');
+const txt2epubTargetPath = document.getElementById('txt2epub-targetPath');
+const txt2epubSelectTargetBtn = document.getElementById('txt2epub-selectTargetBtn');
+const txt2epubAuthor = document.getElementById('txt2epub-author');
+const txt2epubCustomPattern = document.getElementById('txt2epub-customPattern');
+const txt2epubStartBtn = document.getElementById('txt2epub-startBtn');
+const txt2epubProgressSection = document.getElementById('txt2epub-progressSection');
+const txt2epubProgressFill = document.getElementById('txt2epub-progressFill');
+const txt2epubProgressText = document.getElementById('txt2epub-progressText');
+const txt2epubCurrentFile = document.getElementById('txt2epub-currentFile');
+const txt2epubStage = document.getElementById('txt2epub-stage');
+const txt2epubResultSection = document.getElementById('txt2epub-resultSection');
+const txt2epubSuccessCount = document.getElementById('txt2epub-successCount');
+const txt2epubFailedResult = document.getElementById('txt2epub-failedResult');
+const txt2epubFailedCount = document.getElementById('txt2epub-failedCount');
+const txt2epubOpenFolderBtn = document.getElementById('txt2epub-openFolderBtn');
+const txt2epubResetBtn = document.getElementById('txt2epub-resetBtn');
+const txt2epubErrorList = document.getElementById('txt2epub-errorList');
+const txt2epubErrorListContent = document.getElementById('txt2epub-errorListContent');
+
+// 模态框相关
+const txt2epubPreviewModal = document.getElementById('txt2epub-previewModal');
+const txt2epubClosePreviewBtn = document.getElementById('txt2epub-closePreviewBtn');
+const txt2epubPreviewFile = document.getElementById('txt2epub-previewFile');
+const txt2epubPreviewStats = document.getElementById('txt2epub-previewStats');
+const txt2epubChapterList = document.getElementById('txt2epub-chapterList');
+
+// 存储扫描到的TXT文件
+let scannedTxtFiles = [];
+
+// 选择TXT源文件夹
+txt2epubSelectSourceBtn.addEventListener('click', async () => {
+  const path = await window.electronAPI.selectSourceFolder();
+  if (path) {
+    txt2epubSourcePath.value = path;
+    txt2epubScanBtn.disabled = false;
+    // 隐藏之前的结果
+    txt2epubFileListSection.style.display = 'none';
+    txt2epubTargetSection.style.display = 'none';
+    txt2epubResultSection.style.display = 'none';
+  }
+});
+
+// 选择单个TXT文件
+txt2epubSelectFileBtn.addEventListener('click', async () => {
+  const file = await window.electronAPI.selectTxtFile();
+  if (file) {
+    scannedTxtFiles = [file];
+    txt2epubSourcePath.value = file.path;
+
+    // 显示结果
+    txt2epubFileListSection.style.display = 'block';
+    txt2epubTargetSection.style.display = 'block';
+
+    // 设置默认输出目录
+    const separator = file.path.includes('\\') ? '\\' : '/';
+    const dir = file.path.substring(0, file.path.lastIndexOf(separator));
+    if (!txt2epubTargetPath.value) {
+      txt2epubTargetPath.value = dir + separator + 'EPUB输出';
+    }
+
+    txt2epubFileCount.textContent = `共选择 1 个TXT文件`;
+
+    // 渲染文件列表
+    renderTxtFileList();
+  }
+});
+
+// 选择EPUB输出文件夹
+txt2epubSelectTargetBtn.addEventListener('click', async () => {
+  const path = await window.electronAPI.selectTargetFolder();
+  if (path) {
+    txt2epubTargetPath.value = path;
+    updateTxt2EpubButtonState();
+  }
+});
+
+// 扫描TXT文件
+txt2epubScanBtn.addEventListener('click', async () => {
+  txt2epubScanBtn.disabled = true;
+  txt2epubScanBtn.textContent = '扫描中...';
+
+  try {
+    scannedTxtFiles = await window.electronAPI.scanTxtFiles(txt2epubSourcePath.value);
+
+    // 显示结果
+    txt2epubFileListSection.style.display = 'block';
+    txt2epubTargetSection.style.display = 'block';
+
+    // 默认将输出文件夹设置为源文件夹下的"EPUB输出"子文件夹
+    if (!txt2epubTargetPath.value) {
+      const separator = txt2epubSourcePath.value.includes('\\') ? '\\' : '/';
+      txt2epubTargetPath.value = txt2epubSourcePath.value + separator + 'EPUB输出';
+    }
+
+    txt2epubFileCount.textContent = `共找到 ${scannedTxtFiles.length} 个TXT文件`;
+
+    // 渲染文件列表
+    renderTxtFileList();
+
+  } catch (error) {
+    alert('扫描出错: ' + error.message);
+  } finally {
+    txt2epubScanBtn.disabled = false;
+    txt2epubScanBtn.textContent = '扫描TXT文件';
+  }
+});
+
+// 渲染TXT文件列表
+function renderTxtFileList() {
+  txt2epubFileList.innerHTML = '';
+
+  if (scannedTxtFiles.length === 0) {
+    txt2epubFileList.innerHTML = '<div class="no-videos">未找到TXT文件</div>';
+    return;
+  }
+
+  scannedTxtFiles.forEach((file, index) => {
+    const item = document.createElement('div');
+    item.className = 'video-item';
+    item.innerHTML = `
+      <label class="checkbox-label">
+        <input type="checkbox" class="txt-checkbox" data-index="${index}" checked>
+        <div class="video-info">
+          <span class="video-name" title="${file.path}">📄 ${file.name}</span>
+          <span class="video-meta">
+            <span class="video-size">${formatFileSize(file.size)}</span>
+          </span>
+        </div>
+      </label>
+    `;
+    txt2epubFileList.appendChild(item);
+  });
+
+  updateTxt2EpubButtonState();
+}
+
+// 全选TXT文件
+txt2epubSelectAllBtn.addEventListener('click', () => {
+  document.querySelectorAll('.txt-checkbox').forEach(cb => cb.checked = true);
+  updateTxt2EpubButtonState();
+});
+
+// 取消全选TXT文件
+txt2epubDeselectAllBtn.addEventListener('click', () => {
+  document.querySelectorAll('.txt-checkbox').forEach(cb => cb.checked = false);
+  updateTxt2EpubButtonState();
+});
+
+// 监听复选框变化
+txt2epubFileList.addEventListener('change', (e) => {
+  if (e.target.classList.contains('txt-checkbox')) {
+    updateTxt2EpubButtonState();
+  }
+});
+
+// 更新转换按钮状态
+function updateTxt2EpubButtonState() {
+  const checkedCount = document.querySelectorAll('.txt-checkbox:checked').length;
+  const hasTargetPath = txt2epubTargetPath.value.trim() !== '';
+  txt2epubStartBtn.disabled = checkedCount === 0 || !hasTargetPath;
+
+  if (checkedCount > 0) {
+    txt2epubStartBtn.textContent = `📚 转换 ${checkedCount} 个文件`;
+  } else {
+    txt2epubStartBtn.textContent = '📚 开始转换';
+  }
+}
+
+// 预览章节
+txt2epubPreviewBtn.addEventListener('click', async () => {
+  // 获取第一个被选中的文件
+  const firstChecked = document.querySelector('.txt-checkbox:checked');
+  if (!firstChecked) {
+    alert('请先选择一个TXT文件');
+    return;
+  }
+
+  const index = parseInt(firstChecked.dataset.index);
+  const file = scannedTxtFiles[index];
+
+  txt2epubPreviewBtn.disabled = true;
+  txt2epubPreviewBtn.textContent = '加载中...';
+
+  try {
+    const customPattern = txt2epubCustomPattern.value.trim() || null;
+    const result = await window.electronAPI.previewTxtChapters({
+      filePath: file.path,
+      customPattern: customPattern
+    });
+
+    if (result.success) {
+      // 显示模态框
+      txt2epubPreviewModal.style.display = 'flex';
+      txt2epubPreviewFile.textContent = `📄 ${file.name}`;
+      txt2epubPreviewStats.textContent = `共检测到 ${result.totalChapters} 个章节`;
+
+      // 渲染章节列表
+      if (result.chapters.length === 0) {
+        txt2epubChapterList.innerHTML = '<div class="no-videos">未能识别出章节，将整体作为一个章节处理</div>';
+      } else {
+        txt2epubChapterList.innerHTML = result.chapters.map(ch => `
+          <div class="chapter-item">
+            <span class="chapter-index">${ch.index}</span>
+            <span class="chapter-title">${ch.title}</span>
+            <div class="chapter-meta">字符数: ${ch.contentLength.toLocaleString()}</div>
+            <div class="chapter-preview">${ch.preview}</div>
+          </div>
+        `).join('');
+      }
+    } else {
+      alert('预览失败: ' + result.error);
+    }
+  } catch (error) {
+    alert('预览出错: ' + error.message);
+  } finally {
+    txt2epubPreviewBtn.disabled = false;
+    txt2epubPreviewBtn.textContent = '预览章节';
+  }
+});
+
+// 关闭预览模态框
+txt2epubClosePreviewBtn.addEventListener('click', () => {
+  txt2epubPreviewModal.style.display = 'none';
+});
+
+// 点击模态框外部关闭
+txt2epubPreviewModal.addEventListener('click', (e) => {
+  if (e.target === txt2epubPreviewModal) {
+    txt2epubPreviewModal.style.display = 'none';
+  }
+});
+
+// 开始转换
+txt2epubStartBtn.addEventListener('click', async () => {
+  // 获取选中的文件
+  const selectedFiles = [];
+  document.querySelectorAll('.txt-checkbox:checked').forEach(cb => {
+    const index = parseInt(cb.dataset.index);
+    selectedFiles.push(scannedTxtFiles[index]);
+  });
+
+  if (selectedFiles.length === 0) {
+    alert('请至少选择一个TXT文件');
+    return;
+  }
+
+  // 禁用按钮，显示进度
+  txt2epubStartBtn.disabled = true;
+  txt2epubProgressSection.style.display = 'block';
+  txt2epubResultSection.style.display = 'none';
+  txt2epubProgressFill.style.width = '0%';
+  txt2epubProgressText.textContent = '0%';
+
+  // 监听进度
+  window.electronAPI.onTxt2EpubProgress((data) => {
+    const percent = Math.round((data.current / data.total) * 100);
+    txt2epubProgressFill.style.width = percent + '%';
+    txt2epubProgressText.textContent = `${percent}% (${data.current}/${data.total})`;
+    txt2epubCurrentFile.textContent = data.currentFile;
+    txt2epubStage.textContent = '📖 正在转换...';
+  });
+
+  try {
+    const customPattern = txt2epubCustomPattern.value.trim() || null;
+    const author = txt2epubAuthor.value.trim() || '未知作者';
+
+    const result = await window.electronAPI.convertTxtToEpub({
+      files: selectedFiles,
+      outputPath: txt2epubTargetPath.value,
+      options: {
+        author: author,
+        customPattern: customPattern
+      }
+    });
+
+    // 显示结果
+    txt2epubProgressSection.style.display = 'none';
+    txt2epubResultSection.style.display = 'block';
+
+    txt2epubSuccessCount.textContent = result.success;
+
+    if (result.failed > 0) {
+      txt2epubFailedResult.style.display = 'block';
+      txt2epubFailedCount.textContent = result.failed;
+
+      // 显示错误详情
+      txt2epubErrorList.style.display = 'block';
+      txt2epubErrorListContent.innerHTML = result.errors.map(err =>
+        `<li><strong>${err.file}</strong>: ${err.error}</li>`
+      ).join('');
+    } else {
+      txt2epubFailedResult.style.display = 'none';
+      txt2epubErrorList.style.display = 'none';
+    }
+
+  } catch (error) {
+    alert('转换出错: ' + error.message);
+    txt2epubProgressSection.style.display = 'none';
+  } finally {
+    window.electronAPI.removeTxt2EpubProgressListener();
+    txt2epubStartBtn.disabled = false;
+  }
+});
+
+// 打开输出文件夹
+txt2epubOpenFolderBtn.addEventListener('click', () => {
+  window.electronAPI.openFolder(txt2epubTargetPath.value);
+});
+
+// 重新开始
+txt2epubResetBtn.addEventListener('click', () => {
+  txt2epubSourcePath.value = '';
+  txt2epubTargetPath.value = '';
+  txt2epubAuthor.value = '';
+  txt2epubCustomPattern.value = '';
+  scannedTxtFiles = [];
+  txt2epubScanBtn.disabled = true;
+  txt2epubStartBtn.disabled = true;
+  txt2epubFileListSection.style.display = 'none';
+  txt2epubTargetSection.style.display = 'none';
+  txt2epubProgressSection.style.display = 'none';
+  txt2epubResultSection.style.display = 'none';
+  txt2epubProgressFill.style.width = '0%';
+  txt2epubProgressText.textContent = '0%';
+  txt2epubCurrentFile.textContent = '';
+  txt2epubStage.textContent = '';
+});

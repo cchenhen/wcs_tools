@@ -23,7 +23,7 @@
     "copy-webpack-plugin": "^12.0.2",
     "css-loader": "^6.8.1",
     "css-minimizer-webpack-plugin": "^5.0.1",
-    "electron": "^28.0.0",
+    "electron": "^28.3.3",
     "electron-builder": "^24.9.1",
     "html-webpack-plugin": "^5.6.0",
     "mini-css-extract-plugin": "^2.7.6",
@@ -76,6 +76,8 @@
     "7zip-bin": "^5.2.0",
     "7zip-min": "^2.1.0",
     "archiver": "^7.0.1",
+    "epub-gen-memory": "^1.1.2",
+    "iconv-lite": "^0.7.2",
     "minimatch": "^9.0.3",
     "readdir-glob": "^1.1.3"
   }

@@ -4,99 +4,124 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   // 选择源文件夹
   selectSourceFolder: () => ipcRenderer.invoke('select-source-folder'),
-  
+
   // 选择目标文件夹
   selectTargetFolder: () => ipcRenderer.invoke('select-target-folder'),
-  
+
   // 扫描视频文件
   scanVideos: (sourcePath) => ipcRenderer.invoke('scan-videos', sourcePath),
-  
+
   // 创建快捷方式
   createShortcuts: (options) => ipcRenderer.invoke('create-shortcuts', options),
-  
+
   // 打开文件夹
   openFolder: (folderPath) => ipcRenderer.invoke('open-folder', folderPath),
-  
+
   // 获取平台信息
   getPlatform: () => ipcRenderer.invoke('get-platform'),
-  
+
   // 监听进度更新
   onProgressUpdate: (callback) => {
     ipcRenderer.on('progress-update', (event, data) => callback(data));
   },
-  
+
   // 移除进度监听
   removeProgressListener: () => {
     ipcRenderer.removeAllListeners('progress-update');
   },
-  
+
   // ============ 7z转ZIP工具 API ============
-  
+
   // 扫描7z文件
   scan7zFiles: (sourcePath) => ipcRenderer.invoke('scan-7z-files', sourcePath),
-  
+
   // 转换7z到zip
   convert7zToZip: (options) => ipcRenderer.invoke('convert-7z-to-zip', options),
-  
+
   // 监听转换进度
   onConvertProgress: (callback) => {
     ipcRenderer.on('convert-progress', (event, data) => callback(data));
   },
-  
+
   // 移除转换进度监听
   removeConvertProgressListener: () => {
     ipcRenderer.removeAllListeners('convert-progress');
   },
-  
+
   // ============ 图片打包ZIP工具 API ============
-  
+
   // 扫描包含图片的子文件夹
   scanImageFolders: (sourcePath) => ipcRenderer.invoke('scan-image-folders', sourcePath),
-  
+
   // 打包图片为ZIP
   packImagesToZip: (options) => ipcRenderer.invoke('pack-images-to-zip', options),
-  
+
   // 监听打包进度
   onImageZipProgress: (callback) => {
     ipcRenderer.on('imagezip-progress', (event, data) => callback(data));
   },
-  
+
   // 移除打包进度监听
   removeImageZipProgressListener: () => {
     ipcRenderer.removeAllListeners('imagezip-progress');
   },
-  
+
+  // ============ TXT转EPUB工具 API ============
+
+  // 扫描TXT文件
+  scanTxtFiles: (sourcePath) => ipcRenderer.invoke('scan-txt-files', sourcePath),
+
+  // 选择单个TXT文件
+  selectTxtFile: () => ipcRenderer.invoke('select-txt-file'),
+
+  // 预览章节
+  previewTxtChapters: (options) => ipcRenderer.invoke('preview-txt-chapters', options),
+
+  // 转换TXT到EPUB
+  convertTxtToEpub: (options) => ipcRenderer.invoke('convert-txt-to-epub', options),
+
+  // 监听转换进度
+  onTxt2EpubProgress: (callback) => {
+    ipcRenderer.on('txt2epub-progress', (event, data) => callback(data));
+  },
+
+  // 移除转换进度监听
+  removeTxt2EpubProgressListener: () => {
+    ipcRenderer.removeAllListeners('txt2epub-progress');
+  },
+
   // ============ 任务队列 API ============
-  
+
   // 添加任务到队列
-  taskQueueAdd: (taskType, taskData, taskName) => 
+  taskQueueAdd: (taskType, taskData, taskName) =>
     ipcRenderer.invoke('task-queue-add', { taskType, taskData, taskName }),
-  
+
   // 获取所有任务
   taskQueueGetAll: () => ipcRenderer.invoke('task-queue-get-all'),
-  
+
   // 获取单个任务
   taskQueueGet: (taskId) => ipcRenderer.invoke('task-queue-get', taskId),
-  
+
   // 取消任务
   taskQueueCancel: (taskId) => ipcRenderer.invoke('task-queue-cancel', taskId),
-  
+
   // 清除已完成的任务
   taskQueueClearCompleted: () => ipcRenderer.invoke('task-queue-clear-completed'),
-  
+
   // 监听任务更新
   onTaskUpdate: (callback) => {
     ipcRenderer.on('task-update', (event, task) => callback(task));
   },
-  
+
   // 监听任务列表更新
   onTaskListUpdate: (callback) => {
     ipcRenderer.on('task-list-update', (event, tasks) => callback(tasks));
   },
-  
+
   // 移除任务监听
   removeTaskListeners: () => {
     ipcRenderer.removeAllListeners('task-update');
     ipcRenderer.removeAllListeners('task-list-update');
   }
 });
+
