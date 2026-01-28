@@ -31,13 +31,13 @@ class TaskQueue {
       startedAt: null,
       completedAt: null
     };
-    
+
     this.tasks.set(taskId, task);
     this.notifyTaskUpdate(task);
-    
+
     // 尝试执行任务
     this.processQueue();
-    
+
     return taskId;
   }
 
@@ -49,9 +49,9 @@ class TaskQueue {
       const pendingTask = Array.from(this.tasks.values()).find(
         task => task.status === 'pending'
       );
-      
+
       if (!pendingTask) break;
-      
+
       // 执行任务
       this.executeTask(pendingTask);
     }
@@ -66,7 +66,7 @@ class TaskQueue {
 
     try {
       let result;
-      
+
       switch (task.type) {
         case 'create-shortcuts':
           result = await this.executeCreateShortcuts(task);
@@ -80,7 +80,7 @@ class TaskQueue {
         default:
           throw new Error(`Unknown task type: ${task.type}`);
       }
-      
+
       task.status = 'completed';
       task.result = result;
       task.progress = 100;
@@ -91,7 +91,7 @@ class TaskQueue {
       task.completedAt = Date.now();
       this.runningTasks.delete(task.id);
       this.notifyTaskUpdate(task);
-      
+
       // 继续处理队列
       this.processQueue();
     }
@@ -101,14 +101,14 @@ class TaskQueue {
   async executeCreateShortcuts(task) {
     const { videos, targetPath, namingMode } = task.data;
     const results = { success: 0, failed: 0, errors: [] };
-    
+
     if (!fs.existsSync(targetPath)) {
       fs.mkdirSync(targetPath, { recursive: true });
     }
-    
+
     const totalVideos = videos.length;
     const concurrencyLimit = 10;
-    
+
     for (let i = 0; i < totalVideos; i += concurrencyLimit) {
       const batch = videos.slice(i, Math.min(i + concurrencyLimit, totalVideos));
       const batchPromises = batch.map(async (video) => {
@@ -125,9 +125,9 @@ class TaskQueue {
             shortcutName = path.parse(video.name).name;
             break;
         }
-        
+
         const result = await createShortcut(video.path, targetPath, shortcutName);
-        
+
         if (result.success) {
           results.success++;
         } else {
@@ -135,13 +135,13 @@ class TaskQueue {
           results.errors.push({ video: video.name, error: result.error });
         }
       });
-      
+
       await Promise.all(batchPromises);
-      
+
       task.progress = Math.round(((i + batch.length) / totalVideos) * 100);
       this.notifyTaskUpdate(task);
     }
-    
+
     return results;
   }
 
@@ -149,31 +149,31 @@ class TaskQueue {
   async executeConvert7zToZip(task) {
     const { files, videoOutputPath, keepOriginal, compressionLevel = 1 } = task.data;
     const results = { success: 0, failed: 0, videosExtracted: 0, errors: [] };
-    
+
     if (!fs.existsSync(videoOutputPath)) {
       fs.mkdirSync(videoOutputPath, { recursive: true });
     }
-    
+
     const totalFiles = files.length;
-    
+
     for (let i = 0; i < totalFiles; i++) {
       const file = files[i];
       const tempDir = path.join(os.tmpdir(), `7z_extract_${Date.now()}_${i}`);
-      
+
       try {
         fs.mkdirSync(tempDir, { recursive: true });
         await extract7z(file.path, tempDir);
-        
+
         const allFiles = getAllFiles(tempDir);
         const videoFiles = allFiles.filter(f => f.type === 'video');
         const nonVideoFiles = allFiles.filter(f => f.type !== 'video');
-        
+
         // 复制视频文件
         for (const video of videoFiles) {
           const baseName = path.basename(file.name, '.7z');
           const videoDestName = `${baseName}_${video.name}`;
           const videoDest = path.join(videoOutputPath, videoDestName);
-          
+
           let finalDest = videoDest;
           let counter = 1;
           while (fs.existsSync(finalDest)) {
@@ -182,23 +182,23 @@ class TaskQueue {
             finalDest = path.join(videoOutputPath, `${nameWithoutExt}_${counter}${ext}`);
             counter++;
           }
-          
+
           fs.copyFileSync(video.absolutePath, finalDest);
           results.videosExtracted++;
         }
-        
+
         // 创建zip文件（非视频文件）
         if (nonVideoFiles.length > 0) {
           const zipName = path.basename(file.name, '.7z') + '.zip';
           const zipPath = path.join(path.dirname(file.path), zipName);
           await createZip(nonVideoFiles, zipPath, compressionLevel);
         }
-        
+
         // 删除原7z文件
         if (!keepOriginal) {
           fs.unlinkSync(file.path);
         }
-        
+
         results.success++;
       } catch (error) {
         results.failed++;
@@ -210,11 +210,11 @@ class TaskQueue {
           console.error('清理临时目录失败:', err.message);
         }
       }
-      
+
       task.progress = Math.round(((i + 1) / totalFiles) * 100);
       this.notifyTaskUpdate(task);
     }
-    
+
     return results;
   }
 
@@ -222,45 +222,45 @@ class TaskQueue {
   async executePackImages(task) {
     const { folders, targetPath, compressionLevel = 1 } = task.data;
     const results = { success: 0, failed: 0, totalImages: 0, errors: [] };
-    
+
     if (!fs.existsSync(targetPath)) {
       fs.mkdirSync(targetPath, { recursive: true });
     }
-    
+
     const totalFolders = folders.length;
-    
+
     for (let i = 0; i < totalFolders; i++) {
       const folder = folders[i];
-      
+
       try {
         const filesToZip = folder.images.map(img => ({
           absolutePath: img.absolutePath,
           relativePath: img.relativePath
         }));
-        
+
         let zipName = `${folder.name}.zip`;
         let zipPath = path.join(targetPath, zipName);
         let counter = 1;
-        
+
         while (fs.existsSync(zipPath)) {
           zipName = `${folder.name}_${counter}.zip`;
           zipPath = path.join(targetPath, zipName);
           counter++;
         }
-        
+
         await createZip(filesToZip, zipPath, compressionLevel);
-        
+
         results.success++;
         results.totalImages += folder.images.length;
       } catch (error) {
         results.failed++;
         results.errors.push({ folder: folder.name, error: error.message });
       }
-      
+
       task.progress = Math.round(((i + 1) / totalFolders) * 100);
       this.notifyTaskUpdate(task);
     }
-    
+
     return results;
   }
 
@@ -268,14 +268,14 @@ class TaskQueue {
   cancelTask(taskId) {
     const task = this.tasks.get(taskId);
     if (!task) return false;
-    
+
     if (task.status === 'pending') {
       task.status = 'cancelled';
       task.completedAt = Date.now();
       this.notifyTaskUpdate(task);
       return true;
     }
-    
+
     return false;
   }
 
@@ -284,7 +284,7 @@ class TaskQueue {
     const completedIds = Array.from(this.tasks.values())
       .filter(task => task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled')
       .map(task => task.id);
-    
+
     completedIds.forEach(id => this.tasks.delete(id));
     this.notifyTaskListUpdate();
   }
@@ -342,7 +342,7 @@ function get7zPath() {
       candidates.push(path.join(zbinDir, '7za'));
     }
     for (const c of candidates) if (fs.existsSync(c)) return c;
-  } catch (e) {}
+  } catch (e) { }
 
   // 回退到 7zip-min 的查找方式（保留原有逻辑，但更健壮）
   try {
@@ -363,14 +363,14 @@ function get7zPath() {
       candidates.push(path.join(sevenZipDir, '7za'));
     }
     for (const c of candidates) if (fs.existsSync(c)) return c;
-  } catch (e) {}
+  } catch (e) { }
 
   // 最后尝试系统 PATH 中的 7za/7z
   try {
     const which = process.platform === 'win32' ? 'where' : 'which';
     const out = require('child_process').execSync(`${which} 7za || ${which} 7z`, { encoding: 'utf8' }).split(/\r?\n/)[0];
     if (out && fs.existsSync(out)) return out;
-  } catch (e) {}
+  } catch (e) { }
 
   // 未找到时返回空字符串，调用处会回退到 7zip-min 的 JS 解压
   return '';
@@ -413,7 +413,7 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
-  
+
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
@@ -485,7 +485,7 @@ ipcMain.handle('select-source-folder', async () => {
     properties: ['openDirectory'],
     title: '选择源文件夹'
   });
-  
+
   if (result.canceled) {
     return null;
   }
@@ -498,7 +498,7 @@ ipcMain.handle('select-target-folder', async () => {
     properties: ['openDirectory', 'createDirectory'],
     title: '选择目标文件夹'
   });
-  
+
   if (result.canceled) {
     return null;
   }
@@ -508,16 +508,16 @@ ipcMain.handle('select-target-folder', async () => {
 // 递归扫描视频文件
 function scanVideoFiles(dir, baseDir = dir) {
   const videos = [];
-  
+
   try {
     const items = fs.readdirSync(dir);
-    
+
     for (const item of items) {
       const fullPath = path.join(dir, item);
-      
+
       try {
         const stat = fs.statSync(fullPath);
-        
+
         if (stat.isDirectory()) {
           // 递归扫描子目录
           videos.push(...scanVideoFiles(fullPath, baseDir));
@@ -527,7 +527,7 @@ function scanVideoFiles(dir, baseDir = dir) {
             // 获取相对于基础目录的父文件夹名称
             const relativePath = path.relative(baseDir, dir);
             const parentFolder = relativePath || path.basename(baseDir);
-            
+
             videos.push({
               name: item,
               path: fullPath,
@@ -543,7 +543,7 @@ function scanVideoFiles(dir, baseDir = dir) {
   } catch (err) {
     console.error(`无法读取目录 ${dir}:`, err.message);
   }
-  
+
   return videos;
 }
 
@@ -555,20 +555,20 @@ ipcMain.handle('scan-videos', async (event, sourcePath) => {
 // 创建快捷方式
 async function createShortcut(videoPath, targetDir, shortcutName) {
   const platform = process.platform;
-  
+
   try {
     if (platform === 'win32') {
       // Windows: 创建 .lnk 快捷方式
       const shortcutPath = path.join(targetDir, `${shortcutName}.lnk`);
-      
+
       // 转义 PowerShell 字符串中的特殊字符
       const escapePowerShellString = (str) => {
         return str.replace(/'/g, "''");
       };
-      
+
       const escapedShortcutPath = escapePowerShellString(shortcutPath);
       const escapedVideoPath = escapePowerShellString(videoPath);
-      
+
       // 使用 PowerShell 创建快捷方式：通过 -EncodedCommand 传递 Base64(UTF-16LE) 的命令，避免脚本编码导致的路径问题
       const { execFile } = require('child_process');
 
@@ -595,31 +595,31 @@ $Shortcut.Save()
           }
         });
       });
-      
+
     } else if (platform === 'darwin') {
       // macOS: 创建符号链接
       const shortcutPath = path.join(targetDir, `${shortcutName}${path.extname(videoPath)}`);
-      
+
       // 如果已存在，先删除
       if (fs.existsSync(shortcutPath)) {
         fs.unlinkSync(shortcutPath);
       }
-      
+
       fs.symlinkSync(videoPath, shortcutPath);
-      
+
       return { success: true, path: shortcutPath };
-      
+
     } else {
       // Linux: 创建符号链接
       const shortcutPath = path.join(targetDir, `${shortcutName}${path.extname(videoPath)}`);
-      
+
       // 如果已存在，先删除
       if (fs.existsSync(shortcutPath)) {
         fs.unlinkSync(shortcutPath);
       }
-      
+
       fs.symlinkSync(videoPath, shortcutPath);
-      
+
       return { success: true, path: shortcutPath };
     }
   } catch (err) {
@@ -634,32 +634,32 @@ ipcMain.handle('create-shortcuts', async (event, { videos, targetPath, namingMod
     failed: 0,
     errors: []
   };
-  
+
   // 确保目标目录存在
   if (!fs.existsSync(targetPath)) {
     fs.mkdirSync(targetPath, { recursive: true });
   }
-  
+
   // 用于跟踪重名情况
   const nameCount = {};
-  
+
   // 并发控制：最多同时执行5个快捷方式创建
   const maxConcurrency = 5;
   const queue = [];
   let executing = 0;
-  
+
   // 准备所有快捷方式创建任务
   const tasks = videos.map((video, i) => ({
     index: i,
     video: video,
     shortcutName: null
   }));
-  
+
   // 计算每个视频的快捷方式名称
   for (let i = 0; i < tasks.length; i++) {
     const task = tasks[i];
     const video = task.video;
-    
+
     if (namingMode === 'folder') {
       // 使用父文件夹名称 + 原文件名
       const baseName = path.basename(video.name, path.extname(video.name));
@@ -668,13 +668,13 @@ ipcMain.handle('create-shortcuts', async (event, { videos, targetPath, namingMod
     } else if (namingMode === 'folderOnly') {
       // 仅使用父文件夹名称
       const folderName = video.parentFolder.replace(/[/\\]/g, '_');
-      
+
       // 处理同名情况
       if (nameCount[folderName] === undefined) {
         nameCount[folderName] = 0;
       }
       nameCount[folderName]++;
-      
+
       if (nameCount[folderName] === 1) {
         task.shortcutName = folderName;
       } else {
@@ -684,15 +684,15 @@ ipcMain.handle('create-shortcuts', async (event, { videos, targetPath, namingMod
       // 使用原文件名
       task.shortcutName = path.basename(video.name, path.extname(video.name));
     }
-    
+
     // 清理文件名中的非法字符
     task.shortcutName = task.shortcutName.replace(/[<>:"/\\|?*]/g, '_');
   }
-  
+
   // 执行并发任务
   return new Promise(async (resolve) => {
     let completed = 0;
-    
+
     const processNext = async () => {
       if (queue.length === 0) {
         if (executing === 0 && completed === tasks.length) {
@@ -700,14 +700,14 @@ ipcMain.handle('create-shortcuts', async (event, { videos, targetPath, namingMod
         }
         return;
       }
-      
+
       if (executing < maxConcurrency) {
         executing++;
         const task = queue.shift();
-        
+
         try {
           const result = await createShortcut(task.video.path, targetPath, task.shortcutName);
-          
+
           if (result.success) {
             results.success++;
           } else {
@@ -724,7 +724,7 @@ ipcMain.handle('create-shortcuts', async (event, { videos, targetPath, namingMod
             error: err.message
           });
         }
-        
+
         // 发送进度更新
         completed++;
         mainWindow.webContents.send('progress-update', {
@@ -732,15 +732,15 @@ ipcMain.handle('create-shortcuts', async (event, { videos, targetPath, namingMod
           total: tasks.length,
           currentFile: task.video.name
         });
-        
+
         executing--;
         processNext();
       }
     };
-    
+
     // 初始化队列
     queue.push(...tasks);
-    
+
     // 启动并发处理
     for (let i = 0; i < maxConcurrency; i++) {
       processNext();
@@ -763,16 +763,16 @@ ipcMain.handle('get-platform', () => {
 // 扫描7z文件
 function scan7zFiles(dir) {
   const files = [];
-  
+
   try {
     const items = fs.readdirSync(dir);
-    
+
     for (const item of items) {
       const fullPath = path.join(dir, item);
-      
+
       try {
         const stat = fs.statSync(fullPath);
-        
+
         if (stat.isFile() && path.extname(item).toLowerCase() === '.7z') {
           files.push({
             name: item,
@@ -787,7 +787,7 @@ function scan7zFiles(dir) {
   } catch (err) {
     console.error(`无法读取目录 ${dir}:`, err.message);
   }
-  
+
   return files;
 }
 
@@ -825,7 +825,7 @@ function list7zContents(archivePath) {
 function extract7z(archivePath, destPath) {
   return new Promise((resolve, reject) => {
     const sevenZipBin = get7zPath();
-    
+
     // 检查是否存在原生7z
     if (fs.existsSync(sevenZipBin)) {
       // 使用原生7z命令行，启用多线程解压
@@ -833,7 +833,7 @@ function extract7z(archivePath, destPath) {
       // -y 自动确认所有询问
       // -o 指定输出目录
       const args = ['x', archivePath, `-o${destPath}`, '-y', '-mmt=on'];
-      
+
       execFile(sevenZipBin, args, { maxBuffer: 50 * 1024 * 1024 }, (err, stdout, stderr) => {
         if (err) {
           // 如果原生命令失败，回退到7zip-min
@@ -859,16 +859,16 @@ function extract7z(archivePath, destPath) {
 // 递归获取目录下所有文件
 function getAllFiles(dir, baseDir = dir) {
   const files = [];
-  
+
   try {
     const items = fs.readdirSync(dir);
-    
+
     for (const item of items) {
       const fullPath = path.join(dir, item);
-      
+
       try {
         const stat = fs.statSync(fullPath);
-        
+
         if (stat.isDirectory()) {
           files.push(...getAllFiles(fullPath, baseDir));
         } else if (stat.isFile()) {
@@ -888,7 +888,7 @@ function getAllFiles(dir, baseDir = dir) {
   } catch (err) {
     console.error(`无法读取目录 ${dir}:`, err.message);
   }
-  
+
   return files;
 }
 
@@ -902,21 +902,21 @@ function createZip(files, outputPath, compressionLevel = 1) {
       // 使用更大的缓冲区提升IO性能
       highWaterMark: 1024 * 1024 // 1MB buffer
     });
-    
+
     output.on('close', () => {
       resolve(archive.pointer());
     });
-    
+
     archive.on('error', (err) => {
       reject(err);
     });
-    
+
     archive.pipe(output);
-    
+
     for (const file of files) {
       archive.file(file.absolutePath, { name: file.relativePath });
     }
-    
+
     archive.finalize();
   });
 }
@@ -944,16 +944,16 @@ ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keep
     videosExtracted: 0,
     errors: []
   };
-  
+
   // 确保视频输出目录存在
   if (!fs.existsSync(videoOutputPath)) {
     fs.mkdirSync(videoOutputPath, { recursive: true });
   }
-  
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const tempDir = path.join(os.tmpdir(), `7z_extract_${Date.now()}_${i}`);
-    
+
     try {
       // 发送进度
       mainWindow.webContents.send('convert-progress', {
@@ -962,20 +962,20 @@ ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keep
         currentFile: file.name,
         stage: 'extracting'
       });
-      
+
       // 创建临时目录
       fs.mkdirSync(tempDir, { recursive: true });
-      
+
       // 解压7z文件
       await extract7z(file.path, tempDir);
-      
+
       // 获取所有文件
       const allFiles = getAllFiles(tempDir);
-      
+
       // 分离视频和其他文件
       const videoFiles = allFiles.filter(f => f.type === 'video');
       const nonVideoFiles = allFiles.filter(f => f.type !== 'video');
-      
+
       // 发送进度
       mainWindow.webContents.send('convert-progress', {
         current: i + 1,
@@ -983,14 +983,14 @@ ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keep
         currentFile: file.name,
         stage: 'processing'
       });
-      
+
       // 复制视频文件到指定目录
       for (const video of videoFiles) {
         const baseName = path.basename(file.name, '.7z');
         // 使用原7z文件名作为前缀，避免重名
         const videoDestName = `${baseName}_${video.name}`;
         const videoDest = path.join(videoOutputPath, videoDestName);
-        
+
         // 处理重名
         let finalDest = videoDest;
         let counter = 1;
@@ -1000,11 +1000,11 @@ ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keep
           finalDest = path.join(videoOutputPath, `${nameWithoutExt}_${counter}${ext}`);
           counter++;
         }
-        
+
         fs.copyFileSync(video.absolutePath, finalDest);
         results.videosExtracted++;
       }
-      
+
       // 创建zip文件（只包含非视频文件）
       if (nonVideoFiles.length > 0) {
         mainWindow.webContents.send('convert-progress', {
@@ -1013,20 +1013,20 @@ ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keep
           currentFile: file.name,
           stage: 'zipping'
         });
-        
+
         const zipName = path.basename(file.name, '.7z') + '.zip';
         const zipPath = path.join(path.dirname(file.path), zipName);
-        
+
         await createZip(nonVideoFiles, zipPath, compressionLevel);
       }
-      
+
       // 删除原7z文件（如果选择了不保留）
       if (!keepOriginal) {
         fs.unlinkSync(file.path);
       }
-      
+
       results.success++;
-      
+
     } catch (err) {
       results.failed++;
       results.errors.push({
@@ -1042,7 +1042,7 @@ ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keep
       }
     }
   }
-  
+
   return results;
 });
 
@@ -1051,24 +1051,24 @@ ipcMain.handle('convert-7z-to-zip', async (event, { files, videoOutputPath, keep
 // 扫描包含图片的子文件夹
 function scanImageFolders(dir) {
   const folders = [];
-  
+
   try {
     const items = fs.readdirSync(dir);
-    
+
     for (const item of items) {
       const fullPath = path.join(dir, item);
-      
+
       try {
         const stat = fs.statSync(fullPath);
-        
+
         if (stat.isDirectory()) {
           // 扫描该子文件夹中的图片
           const images = scanImagesInFolder(fullPath);
-          
+
           if (images.length > 0) {
             // 计算总大小
             const totalSize = images.reduce((sum, img) => sum + img.size, 0);
-            
+
             folders.push({
               name: item,
               path: fullPath,
@@ -1085,23 +1085,23 @@ function scanImageFolders(dir) {
   } catch (err) {
     console.error(`无法读取目录 ${dir}:`, err.message);
   }
-  
+
   return folders;
 }
 
 // 扫描文件夹中的图片（递归）
 function scanImagesInFolder(dir, baseDir = dir) {
   const images = [];
-  
+
   try {
     const items = fs.readdirSync(dir);
-    
+
     for (const item of items) {
       const fullPath = path.join(dir, item);
-      
+
       try {
         const stat = fs.statSync(fullPath);
-        
+
         if (stat.isDirectory()) {
           // 递归扫描子目录
           images.push(...scanImagesInFolder(fullPath, baseDir));
@@ -1124,7 +1124,7 @@ function scanImagesInFolder(dir, baseDir = dir) {
   } catch (err) {
     console.error(`无法读取目录 ${dir}:`, err.message);
   }
-  
+
   return images;
 }
 
@@ -1141,15 +1141,15 @@ ipcMain.handle('pack-images-to-zip', async (event, { folders, targetPath, compre
     totalImages: 0,
     errors: []
   };
-  
+
   // 确保输出目录存在
   if (!fs.existsSync(targetPath)) {
     fs.mkdirSync(targetPath, { recursive: true });
   }
-  
+
   for (let i = 0; i < folders.length; i++) {
     const folder = folders[i];
-    
+
     try {
       // 发送进度
       mainWindow.webContents.send('imagezip-progress', {
@@ -1158,30 +1158,30 @@ ipcMain.handle('pack-images-to-zip', async (event, { folders, targetPath, compre
         currentFolder: folder.name,
         stage: 'zipping'
       });
-      
+
       // 准备文件列表
       const filesToZip = folder.images.map(img => ({
         absolutePath: img.absolutePath,
         relativePath: img.relativePath
       }));
-      
+
       // 生成ZIP文件名（处理重名）
       let zipName = `${folder.name}.zip`;
       let zipPath = path.join(targetPath, zipName);
       let counter = 1;
-      
+
       while (fs.existsSync(zipPath)) {
         zipName = `${folder.name}_${counter}.zip`;
         zipPath = path.join(targetPath, zipName);
         counter++;
       }
-      
+
       // 创建ZIP
       await createZip(filesToZip, zipPath, compressionLevel);
-      
+
       results.success++;
       results.totalImages += folder.images.length;
-      
+
     } catch (err) {
       results.failed++;
       results.errors.push({
@@ -1190,7 +1190,7 @@ ipcMain.handle('pack-images-to-zip', async (event, { folders, targetPath, compre
       });
     }
   }
-  
+
   return results;
 });
 
@@ -1225,11 +1225,11 @@ function detectEncoding(buffer) {
   if (buffer[0] === 0xFE && buffer[1] === 0xFF) {
     return 'utf-16be';
   }
-  
+
   // 简单的GBK/UTF-8检测
   let utf8Score = 0;
   let gbkScore = 0;
-  
+
   for (let i = 0; i < Math.min(buffer.length, 1000); i++) {
     if (buffer[i] >= 0x80) {
       // 检查UTF-8多字节序列
@@ -1244,7 +1244,7 @@ function detectEncoding(buffer) {
       }
     }
   }
-  
+
   return utf8Score > gbkScore ? 'utf-8' : 'gbk';
 }
 
@@ -1252,7 +1252,7 @@ function detectEncoding(buffer) {
 function readTxtFile(filePath) {
   const buffer = fs.readFileSync(filePath);
   const encoding = detectEncoding(buffer);
-  
+
   let content;
   if (encoding === 'utf-8') {
     // 移除BOM
@@ -1272,20 +1272,20 @@ function readTxtFile(filePath) {
     const iconv = require('iconv-lite');
     content = iconv.decode(buffer, 'gbk');
   }
-  
+
   return content;
 }
 
 // 判断是否为章节标题
 function isChapterTitle(line, customPattern = null) {
   const trimmedLine = line.trim();
-  
+
   // 空行不是章节
   if (!trimmedLine) return false;
-  
+
   // 太长的行不太可能是章节标题
   if (trimmedLine.length > 50) return false;
-  
+
   // 自定义模式
   if (customPattern) {
     try {
@@ -1295,14 +1295,14 @@ function isChapterTitle(line, customPattern = null) {
       // 正则表达式无效，忽略
     }
   }
-  
+
   // 使用预定义模式
   for (const pattern of CHAPTER_PATTERNS) {
     if (pattern.test(trimmedLine)) {
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -1312,7 +1312,7 @@ function parseChapters(content, customPattern = null) {
   const chapters = [];
   let currentChapter = null;
   let currentContent = [];
-  
+
   for (const line of lines) {
     if (isChapterTitle(line, customPattern)) {
       // 保存之前的章节
@@ -1329,7 +1329,7 @@ function parseChapters(content, customPattern = null) {
       currentContent.push(line);
     }
   }
-  
+
   // 处理最后一章
   if (currentChapter !== null) {
     chapters.push({
@@ -1343,7 +1343,7 @@ function parseChapters(content, customPattern = null) {
       content: currentContent.join('\n').trim()
     });
   }
-  
+
   return chapters;
 }
 
@@ -1351,13 +1351,13 @@ function parseChapters(content, customPattern = null) {
 function contentToHtml(content) {
   // 分割段落并转换为HTML
   const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim());
-  
+
   const htmlParagraphs = paragraphs.map(p => {
     // 处理段落内的换行
     const lines = p.split('\n').filter(l => l.trim());
     return lines.map(line => `<p>${escapeHtml(line.trim())}</p>`).join('\n');
   });
-  
+
   return htmlParagraphs.join('\n');
 }
 
@@ -1374,16 +1374,16 @@ function escapeHtml(text) {
 // 扫描TXT文件
 function scanTxtFiles(dir) {
   const files = [];
-  
+
   try {
     const items = fs.readdirSync(dir);
-    
+
     for (const item of items) {
       const fullPath = path.join(dir, item);
-      
+
       try {
         const stat = fs.statSync(fullPath);
-        
+
         if (stat.isFile() && path.extname(item).toLowerCase() === '.txt') {
           files.push({
             name: item,
@@ -1398,7 +1398,7 @@ function scanTxtFiles(dir) {
   } catch (err) {
     console.error(`无法读取目录 ${dir}:`, err.message);
   }
-  
+
   return files;
 }
 
@@ -1407,7 +1407,7 @@ function previewChapters(filePath, customPattern = null) {
   try {
     const content = readTxtFile(filePath);
     const chapters = parseChapters(content, customPattern);
-    
+
     // 返回章节概要
     return {
       success: true,
@@ -1434,15 +1434,15 @@ async function convertTxtToEpub(txtFile, outputPath, options = {}) {
     author = '未知作者',
     customPattern = null
   } = options;
-  
+
   try {
     const content = readTxtFile(txtFile.path);
     const chapters = parseChapters(content, customPattern);
-    
+
     if (chapters.length === 0) {
       throw new Error('未能解析出任何章节');
     }
-    
+
     // 准备EPUB内容
     const epubContent = chapters.map((ch, index) => ({
       title: ch.title,
@@ -1463,10 +1463,10 @@ async function convertTxtToEpub(txtFile, outputPath, options = {}) {
         </html>
       `
     }));
-    
+
     // 使用epub-gen-memory生成EPUB
     const epub = require('epub-gen-memory').default;
-    
+
     const epubBuffer = await epub({
       title: bookTitle,
       author: author,
@@ -1477,21 +1477,21 @@ async function convertTxtToEpub(txtFile, outputPath, options = {}) {
         p { text-indent: 2em; margin: 0.8em 0; }
       `
     });
-    
+
     // 生成输出文件名
     let epubName = `${bookTitle}.epub`;
     let epubPath = path.join(outputPath, epubName);
     let counter = 1;
-    
+
     while (fs.existsSync(epubPath)) {
       epubName = `${bookTitle}_${counter}.epub`;
       epubPath = path.join(outputPath, epubName);
       counter++;
     }
-    
+
     // 写入文件
     fs.writeFileSync(epubPath, epubBuffer);
-    
+
     return {
       success: true,
       outputPath: epubPath,
@@ -1522,14 +1522,14 @@ ipcMain.handle('select-txt-file', async () => {
     filters: [{ name: 'TXT文件', extensions: ['txt'] }],
     title: '选择TXT文件'
   });
-  
+
   if (result.canceled || result.filePaths.length === 0) {
     return null;
   }
-  
+
   const filePath = result.filePaths[0];
   const stat = fs.statSync(filePath);
-  
+
   return {
     name: path.basename(filePath),
     path: filePath,
@@ -1544,15 +1544,15 @@ ipcMain.handle('convert-txt-to-epub', async (event, { files, outputPath, options
     failed: 0,
     errors: []
   };
-  
+
   // 确保输出目录存在
   if (!fs.existsSync(outputPath)) {
     fs.mkdirSync(outputPath, { recursive: true });
   }
-  
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    
+
     try {
       // 发送进度
       mainWindow.webContents.send('txt2epub-progress', {
@@ -1561,12 +1561,12 @@ ipcMain.handle('convert-txt-to-epub', async (event, { files, outputPath, options
         currentFile: file.name,
         stage: 'converting'
       });
-      
+
       const result = await convertTxtToEpub(file, outputPath, {
         ...options,
         bookTitle: options.bookTitle || path.basename(file.name, '.txt')
       });
-      
+
       if (result.success) {
         results.success++;
       } else {
@@ -1584,6 +1584,555 @@ ipcMain.handle('convert-txt-to-epub', async (event, { files, outputPath, options
       });
     }
   }
-  
+
   return results;
+});
+
+// ============ 图库抓取工具相关功能 ============
+
+const https = require('https');
+const http = require('http');
+const { URL } = require('url');
+const cheerio = require('cheerio');
+const JSZip = require('jszip');
+const zlib = require('zlib');
+
+// 网站配置
+const HENTAICLUB_CONFIG = {
+  baseUrl: 'https://www.hentaiclub.net',
+  searchUrl: 'https://www.hentaiclub.net/search/',
+  requestDelay: 500, // 请求间隔(ms)
+  maxConcurrentDownloads: 5, // 最大并发下载数
+  timeout: 30000, // 请求超时(ms)
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+};
+
+// 取消控制器
+let galleryCrawlAbortController = null;
+
+// 延迟函数
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// 使用原生 https 模块发起请求
+function httpRequest(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url);
+    const protocol = parsedUrl.protocol === 'https:' ? https : http;
+
+    const requestOptions = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: options.method || 'GET',
+      headers: {
+        'User-Agent': HENTAICLUB_CONFIG.userAgent,
+        'Accept': options.accept || 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        // 只接受我们能处理的压缩格式，明确排除 br 和 zstd
+        'Accept-Encoding': 'gzip, deflate, identity',
+        'Connection': 'keep-alive',
+        'Cache-Control': 'no-cache',
+        ...(options.headers || {})
+      },
+      timeout: options.timeout || HENTAICLUB_CONFIG.timeout
+    };
+
+    console.log(`[HTTP] 请求: ${url}`);
+
+    const req = protocol.request(requestOptions, (res) => {
+      console.log(`[HTTP] 状态码: ${res.statusCode}, Content-Encoding: ${res.headers['content-encoding'] || 'none'}`);
+
+      // 处理重定向
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        const redirectUrl = res.headers.location.startsWith('http')
+          ? res.headers.location
+          : `${parsedUrl.protocol}//${parsedUrl.host}${res.headers.location}`;
+        console.log(`[HTTP] 重定向到: ${redirectUrl}`);
+        return httpRequest(redirectUrl, options).then(resolve).catch(reject);
+      }
+
+      const chunks = [];
+
+      // 根据内容编码处理
+      let stream = res;
+      const encoding = res.headers['content-encoding'];
+
+      if (encoding === 'gzip') {
+        stream = res.pipe(zlib.createGunzip());
+      } else if (encoding === 'deflate') {
+        stream = res.pipe(zlib.createInflate());
+      } else if (encoding && encoding !== 'identity') {
+        // 对于未知的编码（如 br, zstd），直接读取原始数据并报错
+        console.warn(`[HTTP] 警告: 不支持的压缩编码 "${encoding}"，尝试直接读取`);
+      }
+
+      stream.on('data', chunk => chunks.push(chunk));
+      stream.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        console.log(`[HTTP] 响应大小: ${buffer.length} 字节`);
+
+        if (options.responseType === 'buffer') {
+          resolve({
+            status: res.statusCode,
+            headers: res.headers,
+            data: buffer
+          });
+        } else {
+          resolve({
+            status: res.statusCode,
+            headers: res.headers,
+            data: buffer.toString('utf-8')
+          });
+        }
+      });
+      stream.on('error', (err) => {
+        console.error(`[HTTP] 流错误: ${err.message}`);
+        reject(err);
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error(`[HTTP] 请求错误: ${err.message}`);
+      reject(err);
+    });
+    req.on('timeout', () => {
+      console.error(`[HTTP] 请求超时: ${url}`);
+      req.destroy();
+      reject(new Error('请求超时'));
+    });
+
+    req.end();
+  });
+}
+
+
+// 搜索图库
+async function searchGalleries(keyword, page = 1) {
+  try {
+    const searchUrl = page === 1
+      ? `${HENTAICLUB_CONFIG.searchUrl}${encodeURIComponent(keyword)}/`
+      : `${HENTAICLUB_CONFIG.searchUrl}${encodeURIComponent(keyword)}/${page}/`;
+
+    console.log(`正在搜索: ${searchUrl}`);
+
+    const response = await httpRequest(searchUrl);
+    const $ = cheerio.load(response.data);
+
+    const galleries = [];
+
+    // 查找所有画廊项目
+    $('.item-link, a.item-link, .post-item a').each((index, element) => {
+      const $el = $(element);
+      const href = $el.attr('href');
+
+      // 过滤有效的画廊链接
+      if (href && (href.includes('/r15/') || href.includes('/r18/')) && href.endsWith('.html')) {
+        const title = $el.find('.item-title, .post-title, h2, h3').text().trim() ||
+          $el.attr('title') ||
+          $el.text().trim() ||
+          '未知标题';
+
+        // 提取图片数量
+        const countMatch = title.match(/\[(\d+)P\]/i) || $el.text().match(/\[(\d+)P\]/i);
+        const imageCount = countMatch ? parseInt(countMatch[1]) : 0;
+
+        // 获取缩略图
+        const thumbnail = $el.find('img').attr('src') || $el.find('img').attr('data-src') || '';
+
+        galleries.push({
+          url: href.startsWith('http') ? href : `${HENTAICLUB_CONFIG.baseUrl}${href}`,
+          title: title.replace(/\[\d+P\]/gi, '').trim(),
+          imageCount: imageCount,
+          thumbnail: thumbnail
+        });
+      }
+    });
+
+    // 检查是否有下一页
+    let hasNextPage = false;
+    const paginationLinks = $('a[href*="/search/"]').toArray();
+    for (const link of paginationLinks) {
+      const href = $(link).attr('href');
+      if (href && href.includes(`/${page + 1}/`)) {
+        hasNextPage = true;
+        break;
+      }
+    }
+
+    // 去重
+    const uniqueGalleries = galleries.filter((gallery, index, self) =>
+      index === self.findIndex(g => g.url === gallery.url)
+    );
+
+    return {
+      success: true,
+      galleries: uniqueGalleries,
+      currentPage: page,
+      hasNextPage: hasNextPage
+    };
+
+  } catch (err) {
+    console.error('搜索失败:', err.message);
+    return {
+      success: false,
+      error: err.message,
+      galleries: [],
+      currentPage: page,
+      hasNextPage: false
+    };
+  }
+}
+
+// 获取画廊中的所有图片
+async function getGalleryImages(galleryUrl) {
+  try {
+    console.log(`正在获取画廊详情: ${galleryUrl}`);
+
+    const response = await httpRequest(galleryUrl);
+    const $ = cheerio.load(response.data);
+
+    const images = [];
+
+    // 查找所有图片 - 基于之前分析的页面结构
+    $('#masonry .post-item img, .post-item-img, .post-content img, article img, .entry-content img').each((index, element) => {
+      const $img = $(element);
+      // 优先获取 data-src (懒加载)，然后是 src
+      let imgUrl = $img.attr('data-src') || $img.attr('data-original') || $img.attr('src');
+
+      if (imgUrl && imgUrl.includes('cdn.') && !imgUrl.includes('logo') && !imgUrl.includes('ads')) {
+        // 确保是完整URL
+        if (!imgUrl.startsWith('http')) {
+          imgUrl = `https:${imgUrl}`;
+        }
+        images.push(imgUrl);
+      }
+    });
+
+    // 也尝试从其他可能的容器获取
+    if (images.length === 0) {
+      $('img[src*="cdn."], img[data-src*="cdn."]').each((index, element) => {
+        const $img = $(element);
+        let imgUrl = $img.attr('data-src') || $img.attr('src');
+
+        if (imgUrl && !imgUrl.includes('logo') && !imgUrl.includes('ads') && !imgUrl.includes('thumb')) {
+          if (!imgUrl.startsWith('http')) {
+            imgUrl = `https:${imgUrl}`;
+          }
+          images.push(imgUrl);
+        }
+      });
+    }
+
+    // 获取标题
+    const title = $('h1.post-title, .entry-title, h1').first().text().trim() ||
+      $('title').text().split('-')[0].trim() ||
+      '未知画廊';
+
+    // 去重
+    const uniqueImages = [...new Set(images)];
+
+    console.log(`画廊 ${title} 找到 ${uniqueImages.length} 张图片`);
+
+    return {
+      success: true,
+      title: title,
+      images: uniqueImages
+    };
+
+  } catch (err) {
+    console.error('获取画廊详情失败:', err.message);
+    return {
+      success: false,
+      error: err.message,
+      title: '',
+      images: []
+    };
+  }
+}
+
+// 下载单张图片
+async function downloadImage(imageUrl, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await httpRequest(imageUrl, {
+        responseType: 'buffer',
+        accept: 'image/*,*/*;q=0.8',
+        headers: {
+          'Referer': HENTAICLUB_CONFIG.baseUrl
+        }
+      });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (err) {
+      console.error(`下载图片失败 (尝试 ${i + 1}/${retries}): ${imageUrl}`, err.message);
+      if (i < retries - 1) {
+        await delay(1000 * (i + 1)); // 递增延迟
+      }
+    }
+  }
+
+  return {
+    success: false,
+    error: '下载失败'
+  };
+}
+
+// 抓取并打包画廊
+async function crawlAndPackGallery(galleryUrl, outputPath, options = {}) {
+  const { onProgress } = options;
+
+  try {
+    // 获取画廊详情
+    const galleryInfo = await getGalleryImages(galleryUrl);
+
+    if (!galleryInfo.success) {
+      return {
+        success: false,
+        error: galleryInfo.error
+      };
+    }
+
+    if (galleryInfo.images.length === 0) {
+      return {
+        success: false,
+        error: '未找到任何图片'
+      };
+    }
+
+    // 创建 ZIP
+    const zip = new JSZip();
+    const total = galleryInfo.images.length;
+    let downloaded = 0;
+    let failed = 0;
+
+    // 使用并发控制下载
+    const downloadQueue = [...galleryInfo.images];
+    const maxConcurrent = HENTAICLUB_CONFIG.maxConcurrentDownloads;
+    const results = [];
+
+    while (downloadQueue.length > 0 || results.length < total) {
+      // 检查是否取消
+      if (galleryCrawlAbortController && galleryCrawlAbortController.signal.aborted) {
+        return {
+          success: false,
+          error: '操作已取消'
+        };
+      }
+
+      // 启动新的下载任务
+      while (results.filter(r => r.status === 'pending').length < maxConcurrent && downloadQueue.length > 0) {
+        const imageUrl = downloadQueue.shift();
+        const index = total - downloadQueue.length - results.filter(r => r.status !== 'pending').length;
+
+        const promise = downloadImage(imageUrl).then(result => {
+          downloaded++;
+
+          if (result.success) {
+            // 生成文件名
+            const ext = path.extname(new URL(imageUrl).pathname) || '.webp';
+            const filename = `${String(downloaded).padStart(4, '0')}${ext}`;
+            zip.file(filename, result.data);
+          } else {
+            failed++;
+          }
+
+          // 报告进度
+          if (onProgress) {
+            onProgress({
+              downloaded: downloaded,
+              total: total,
+              failed: failed,
+              currentUrl: imageUrl
+            });
+          }
+
+          return { status: 'done', success: result.success };
+        });
+
+        results.push({ status: 'pending', promise });
+      }
+
+      // 等待一个任务完成
+      if (results.some(r => r.status === 'pending')) {
+        const pendingResults = results.filter(r => r.status === 'pending');
+        await Promise.race(pendingResults.map(r => r.promise));
+
+        // 更新已完成的状态
+        for (const r of results) {
+          if (r.status === 'pending') {
+            try {
+              const completed = await Promise.race([r.promise, Promise.resolve('not-done')]);
+              if (completed !== 'not-done') {
+                r.status = 'done';
+              }
+            } catch (e) {
+              r.status = 'done';
+            }
+          }
+        }
+      }
+
+      await delay(50); // 短暂延迟避免过于密集
+    }
+
+    // 等待所有任务完成
+    await Promise.all(results.map(r => r.promise));
+
+    // 生成 ZIP 文件
+    const zipName = galleryInfo.title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 100) + '.zip';
+    const zipPath = path.join(outputPath, zipName);
+
+    // 处理重名
+    let finalZipPath = zipPath;
+    let counter = 1;
+    while (fs.existsSync(finalZipPath)) {
+      const baseName = path.basename(zipPath, '.zip');
+      finalZipPath = path.join(outputPath, `${baseName}_${counter}.zip`);
+      counter++;
+    }
+
+    // 写入 ZIP 文件
+    const zipContent = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 1 }
+    });
+
+    fs.writeFileSync(finalZipPath, zipContent);
+
+    return {
+      success: true,
+      title: galleryInfo.title,
+      totalImages: total,
+      downloadedImages: downloaded - failed,
+      failedImages: failed,
+      zipPath: finalZipPath
+    };
+
+  } catch (err) {
+    console.error('抓取画廊失败:', err.message);
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+}
+
+// IPC 处理程序
+
+// 搜索图库
+ipcMain.handle('gallery-search', async (event, { keyword, page }) => {
+  return await searchGalleries(keyword, page || 1);
+});
+
+// 获取画廊详情
+ipcMain.handle('gallery-get-images', async (event, { galleryUrl }) => {
+  return await getGalleryImages(galleryUrl);
+});
+
+// 抓取并打包画廊
+ipcMain.handle('gallery-crawl-and-pack', async (event, { galleries, outputPath }) => {
+  const results = {
+    success: 0,
+    failed: 0,
+    totalImages: 0,
+    errors: []
+  };
+
+  // 重置取消控制器
+  galleryCrawlAbortController = new AbortController();
+
+  // 确保输出目录存在
+  if (!fs.existsSync(outputPath)) {
+    fs.mkdirSync(outputPath, { recursive: true });
+  }
+
+  for (let i = 0; i < galleries.length; i++) {
+    // 检查是否取消
+    if (galleryCrawlAbortController.signal.aborted) {
+      results.errors.push({
+        gallery: '操作已取消',
+        error: '用户取消了操作'
+      });
+      break;
+    }
+
+    const gallery = galleries[i];
+
+    try {
+      // 发送进度
+      mainWindow.webContents.send('gallery-crawl-progress', {
+        current: i + 1,
+        total: galleries.length,
+        currentGallery: gallery.title || gallery.url,
+        stage: 'fetching'
+      });
+
+      // 添加请求间隔
+      if (i > 0) {
+        await delay(HENTAICLUB_CONFIG.requestDelay);
+      }
+
+      const result = await crawlAndPackGallery(gallery.url, outputPath, {
+        onProgress: (progress) => {
+          mainWindow.webContents.send('gallery-crawl-progress', {
+            current: i + 1,
+            total: galleries.length,
+            currentGallery: gallery.title || gallery.url,
+            stage: 'downloading',
+            downloaded: progress.downloaded,
+            imageTotal: progress.total,
+            failed: progress.failed
+          });
+        }
+      });
+
+      if (result.success) {
+        results.success++;
+        results.totalImages += result.downloadedImages;
+      } else {
+        results.failed++;
+        results.errors.push({
+          gallery: gallery.title || gallery.url,
+          error: result.error
+        });
+      }
+
+    } catch (err) {
+      results.failed++;
+      results.errors.push({
+        gallery: gallery.title || gallery.url,
+        error: err.message
+      });
+    }
+  }
+
+  galleryCrawlAbortController = null;
+  return results;
+});
+
+// 取消抓取
+ipcMain.handle('gallery-cancel-crawl', async () => {
+  if (galleryCrawlAbortController) {
+    galleryCrawlAbortController.abort();
+    return true;
+  }
+  return false;
+});
+
+// 选择图库保存目录
+ipcMain.handle('gallery-select-output-folder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'createDirectory'],
+    title: '选择保存目录'
+  });
+
+  if (result.canceled) {
+    return null;
+  }
+  return result.filePaths[0];
 });

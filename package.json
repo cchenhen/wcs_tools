@@ -76,8 +76,10 @@
     "7zip-bin": "^5.2.0",
     "7zip-min": "^2.1.0",
     "archiver": "^7.0.1",
+    "cheerio": "^1.0.0-rc.12",
     "epub-gen-memory": "^1.1.2",
     "iconv-lite": "^0.7.2",
+    "jszip": "^3.10.1",
     "minimatch": "^9.0.3",
     "readdir-glob": "^1.1.3"
   }

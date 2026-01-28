@@ -122,6 +122,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeTaskListeners: () => {
     ipcRenderer.removeAllListeners('task-update');
     ipcRenderer.removeAllListeners('task-list-update');
+  },
+
+  // ============ 图库抓取工具 API ============
+
+  // 搜索图库
+  gallerySearch: (keyword, page) => ipcRenderer.invoke('gallery-search', { keyword, page }),
+
+  // 获取画廊图片
+  galleryGetImages: (galleryUrl) => ipcRenderer.invoke('gallery-get-images', { galleryUrl }),
+
+  // 抓取并打包画廊
+  galleryCrawlAndPack: (galleries, outputPath) =>
+    ipcRenderer.invoke('gallery-crawl-and-pack', { galleries, outputPath }),
+
+  // 取消抓取
+  galleryCancelCrawl: () => ipcRenderer.invoke('gallery-cancel-crawl'),
+
+  // 选择输出文件夹
+  gallerySelectOutputFolder: () => ipcRenderer.invoke('gallery-select-output-folder'),
+
+  // 监听抓取进度
+  onGalleryCrawlProgress: (callback) => {
+    ipcRenderer.on('gallery-crawl-progress', (event, data) => callback(data));
+  },
+
+  // 移除抓取进度监听
+  removeGalleryCrawlProgressListener: () => {
+    ipcRenderer.removeAllListeners('gallery-crawl-progress');
   }
 });
 

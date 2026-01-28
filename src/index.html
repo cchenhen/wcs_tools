@@ -13,7 +13,7 @@
   <div class="container">
     <header>
       <h1>🛠️ 多功能文件工具</h1>
-      <p class="subtitle">视频快捷方式提取 &amp; 7z转ZIP &amp; 图片打包 &amp; TXT转EPUB</p>
+      <p class="subtitle">视频快捷方式提取 &amp; 7z转ZIP &amp; 图片打包 &amp; TXT转EPUB &amp; 图库抓取</p>
     </header>
 
     <!-- 工具选项卡 -->
@@ -22,6 +22,7 @@
       <button class="tab-btn" data-tab="convert">📦 7z转ZIP</button>
       <button class="tab-btn" data-tab="imagezip">🖼️ 图片打包</button>
       <button class="tab-btn" data-tab="txt2epub">📚 TXT转EPUB</button>
+      <button class="tab-btn" data-tab="gallerycrawl">🖼️ 图库抓取</button>
     </div>
 
     <!-- 视频快捷方式工具 -->
@@ -538,6 +539,126 @@
           <div class="error-list" id="txt2epub-errorList" style="display: none;">
             <h4>错误详情:</h4>
             <ul id="txt2epub-errorListContent"></ul>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 图库抓取工具 -->
+    <div id="gallerycrawl-tool" class="tool-content">
+      <main>
+        <!-- 步骤 1: 关键字搜索 -->
+        <section class="card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <h2>关键字搜索</h2>
+          </div>
+          <div class="folder-selector">
+            <input type="text" id="gallery-keyword" placeholder="请输入搜索关键字...">
+            <button id="gallery-searchBtn" class="btn btn-primary">🔍 搜索</button>
+          </div>
+          <p class="option-hint">💡 在 hentaiclub.net 上搜索图库，支持中文关键字</p>
+        </section>
+
+        <!-- 步骤 2: 搜索结果列表 -->
+        <section class="card" id="gallery-resultSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">2</span>
+            <h2>搜索结果</h2>
+          </div>
+          <div class="video-stats">
+            <span id="gallery-resultCount">共找到 0 个图库</span>
+            <div class="select-actions">
+              <button id="gallery-selectAllBtn" class="btn btn-small">全选</button>
+              <button id="gallery-deselectAllBtn" class="btn btn-small">取消全选</button>
+              <button id="gallery-loadMoreBtn" class="btn btn-small btn-info" style="display: none;">加载更多</button>
+            </div>
+          </div>
+          <div class="video-list gallery-list" id="gallery-list">
+            <!-- 图库列表将在这里动态生成 -->
+          </div>
+        </section>
+
+        <!-- 步骤 3: 设置输出选项 -->
+        <section class="card" id="gallery-targetSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">3</span>
+            <h2>设置输出选项</h2>
+          </div>
+
+          <div class="option-group">
+            <label>ZIP文件保存目录</label>
+            <div class="folder-selector">
+              <input type="text" id="gallery-outputPath" placeholder="请选择保存位置..." readonly>
+              <button id="gallery-selectOutputBtn" class="btn btn-primary">浏览...</button>
+            </div>
+            <p class="option-hint">📦 每个图库将被打包成一个独立的ZIP文件</p>
+          </div>
+
+          <div class="info-box">
+            <h4>📋 抓取说明：</h4>
+            <ul>
+              <li>🌐 从 hentaiclub.net 抓取图库图片</li>
+              <li>📦 每个图库自动打包成ZIP文件</li>
+              <li>🔢 图片按顺序编号保存</li>
+              <li>⚡ 支持并发下载，提升速度</li>
+              <li>🔄 支持断点续传和失败重试</li>
+            </ul>
+          </div>
+
+          <button id="gallery-startBtn" class="btn btn-success btn-large" disabled>
+            🚀 开始抓取
+          </button>
+        </section>
+
+        <!-- 进度条 -->
+        <section class="card" id="gallery-progressSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">⏳</span>
+            <h2>正在抓取...</h2>
+          </div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill" id="gallery-progressFill"></div>
+            </div>
+            <div class="progress-text">
+              <span id="gallery-progressText">0%</span>
+              <span id="gallery-currentGallery"></span>
+            </div>
+            <div class="stage-info" id="gallery-stage"></div>
+          </div>
+          <button id="gallery-cancelBtn" class="btn btn-secondary" style="margin-top: 15px;">
+            ❌ 取消抓取
+          </button>
+        </section>
+
+        <!-- 完成结果 -->
+        <section class="card" id="gallery-doneSection" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">✅</span>
+            <h2>抓取完成</h2>
+          </div>
+          <div class="result-summary">
+            <div class="result-item success">
+              <span class="result-icon">✓</span>
+              <span>成功抓取: <strong id="gallery-successCount">0</strong> 个图库</span>
+            </div>
+            <div class="result-item info">
+              <span class="result-icon">🖼️</span>
+              <span>共计图片: <strong id="gallery-imageCount">0</strong> 张</span>
+            </div>
+            <div class="result-item failed" id="gallery-failedResult" style="display: none;">
+              <span class="result-icon">✗</span>
+              <span>失败: <strong id="gallery-failedCount">0</strong> 个</span>
+            </div>
+          </div>
+          <div class="result-actions">
+            <button id="gallery-openFolderBtn" class="btn btn-primary">打开输出文件夹</button>
+            <button id="gallery-resetBtn" class="btn btn-secondary">重新开始</button>
+          </div>
+          <div class="error-list" id="gallery-errorList" style="display: none;">
+            <h4>错误详情:</h4>
+            <ul id="gallery-errorListContent"></ul>
           </div>
         </section>
       </main>

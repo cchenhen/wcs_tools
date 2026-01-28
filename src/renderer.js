@@ -1195,3 +1195,335 @@ txt2epubResetBtn.addEventListener('click', () => {
   txt2epubCurrentFile.textContent = '';
   txt2epubStage.textContent = '';
 });
+
+// ============ 图库抓取工具 ============
+
+// 获取DOM元素
+const galleryKeyword = document.getElementById('gallery-keyword');
+const gallerySearchBtn = document.getElementById('gallery-searchBtn');
+const galleryResultSection = document.getElementById('gallery-resultSection');
+const galleryResultCount = document.getElementById('gallery-resultCount');
+const gallerySelectAllBtn = document.getElementById('gallery-selectAllBtn');
+const galleryDeselectAllBtn = document.getElementById('gallery-deselectAllBtn');
+const galleryLoadMoreBtn = document.getElementById('gallery-loadMoreBtn');
+const galleryList = document.getElementById('gallery-list');
+const galleryTargetSection = document.getElementById('gallery-targetSection');
+const galleryOutputPath = document.getElementById('gallery-outputPath');
+const gallerySelectOutputBtn = document.getElementById('gallery-selectOutputBtn');
+const galleryStartBtn = document.getElementById('gallery-startBtn');
+const galleryProgressSection = document.getElementById('gallery-progressSection');
+const galleryProgressFill = document.getElementById('gallery-progressFill');
+const galleryProgressText = document.getElementById('gallery-progressText');
+const galleryCurrentGallery = document.getElementById('gallery-currentGallery');
+const galleryStage = document.getElementById('gallery-stage');
+const galleryCancelBtn = document.getElementById('gallery-cancelBtn');
+const galleryDoneSection = document.getElementById('gallery-doneSection');
+const gallerySuccessCount = document.getElementById('gallery-successCount');
+const galleryImageCount = document.getElementById('gallery-imageCount');
+const galleryFailedResult = document.getElementById('gallery-failedResult');
+const galleryFailedCount = document.getElementById('gallery-failedCount');
+const galleryOpenFolderBtn = document.getElementById('gallery-openFolderBtn');
+const galleryResetBtn = document.getElementById('gallery-resetBtn');
+const galleryErrorList = document.getElementById('gallery-errorList');
+const galleryErrorListContent = document.getElementById('gallery-errorListContent');
+
+// 存储搜索到的图库
+let searchedGalleries = [];
+let currentSearchKeyword = '';
+let currentSearchPage = 1;
+let hasMorePages = false;
+
+// 搜索图库
+gallerySearchBtn.addEventListener('click', async () => {
+  const keyword = galleryKeyword.value.trim();
+  if (!keyword) {
+    alert('请输入搜索关键字');
+    return;
+  }
+
+  gallerySearchBtn.disabled = true;
+  gallerySearchBtn.textContent = '搜索中...';
+
+  try {
+    // 重置搜索状态
+    currentSearchKeyword = keyword;
+    currentSearchPage = 1;
+    searchedGalleries = [];
+
+    const result = await window.electronAPI.gallerySearch(keyword, 1);
+
+    if (!result.success) {
+      alert('搜索失败: ' + (result.error || '未知错误'));
+      return;
+    }
+
+    searchedGalleries = result.galleries;
+    hasMorePages = result.hasNextPage;
+
+    // 显示结果
+    galleryResultSection.style.display = 'block';
+    galleryTargetSection.style.display = 'block';
+
+    galleryResultCount.textContent = `共找到 ${searchedGalleries.length} 个图库`;
+    galleryLoadMoreBtn.style.display = hasMorePages ? 'inline-block' : 'none';
+
+    // 渲染图库列表
+    renderGalleryList();
+
+  } catch (error) {
+    alert('搜索出错: ' + error.message);
+  } finally {
+    gallerySearchBtn.disabled = false;
+    gallerySearchBtn.textContent = '🔍 搜索';
+  }
+});
+
+// 回车搜索
+galleryKeyword.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    gallerySearchBtn.click();
+  }
+});
+
+// 加载更多
+galleryLoadMoreBtn.addEventListener('click', async () => {
+  galleryLoadMoreBtn.disabled = true;
+  galleryLoadMoreBtn.textContent = '加载中...';
+
+  try {
+    currentSearchPage++;
+    const result = await window.electronAPI.gallerySearch(currentSearchKeyword, currentSearchPage);
+
+    if (result.success && result.galleries.length > 0) {
+      // 合并结果，去重
+      const existingUrls = new Set(searchedGalleries.map(g => g.url));
+      const newGalleries = result.galleries.filter(g => !existingUrls.has(g.url));
+      searchedGalleries = [...searchedGalleries, ...newGalleries];
+
+      hasMorePages = result.hasNextPage;
+      galleryResultCount.textContent = `共找到 ${searchedGalleries.length} 个图库`;
+      galleryLoadMoreBtn.style.display = hasMorePages ? 'inline-block' : 'none';
+
+      // 重新渲染列表
+      renderGalleryList();
+    } else {
+      hasMorePages = false;
+      galleryLoadMoreBtn.style.display = 'none';
+    }
+
+  } catch (error) {
+    alert('加载更多出错: ' + error.message);
+    currentSearchPage--; // 回退页码
+  } finally {
+    galleryLoadMoreBtn.disabled = false;
+    galleryLoadMoreBtn.textContent = '加载更多';
+  }
+});
+
+// 渲染图库列表
+function renderGalleryList() {
+  galleryList.innerHTML = '';
+
+  if (searchedGalleries.length === 0) {
+    galleryList.innerHTML = '<div class="no-videos">未找到匹配的图库</div>';
+    return;
+  }
+
+  searchedGalleries.forEach((gallery, index) => {
+    const item = document.createElement('div');
+    item.className = 'video-item gallery-item';
+
+    // 截断过长的标题
+    const displayTitle = gallery.title.length > 60
+      ? gallery.title.substring(0, 60) + '...'
+      : gallery.title;
+
+    item.innerHTML = `
+      <label class="checkbox-label">
+        <input type="checkbox" class="gallery-checkbox" data-index="${index}" checked>
+        <div class="video-info">
+          <span class="video-name" title="${gallery.title}">${displayTitle}</span>
+          <span class="video-meta">
+            <span class="video-folder">🖼️ ${gallery.imageCount > 0 ? gallery.imageCount + 'P' : '未知数量'}</span>
+            <span class="video-size gallery-url" title="${gallery.url}">🔗 查看</span>
+          </span>
+        </div>
+      </label>
+    `;
+    galleryList.appendChild(item);
+  });
+
+  updateGalleryStartButtonState();
+}
+
+// 全选图库
+gallerySelectAllBtn.addEventListener('click', () => {
+  document.querySelectorAll('.gallery-checkbox').forEach(cb => cb.checked = true);
+  updateGalleryStartButtonState();
+});
+
+// 取消全选图库
+galleryDeselectAllBtn.addEventListener('click', () => {
+  document.querySelectorAll('.gallery-checkbox').forEach(cb => cb.checked = false);
+  updateGalleryStartButtonState();
+});
+
+// 监听复选框变化
+galleryList.addEventListener('change', (e) => {
+  if (e.target.classList.contains('gallery-checkbox')) {
+    updateGalleryStartButtonState();
+  }
+});
+
+// 选择输出文件夹
+gallerySelectOutputBtn.addEventListener('click', async () => {
+  const path = await window.electronAPI.gallerySelectOutputFolder();
+  if (path) {
+    galleryOutputPath.value = path;
+    updateGalleryStartButtonState();
+  }
+});
+
+// 更新开始按钮状态
+function updateGalleryStartButtonState() {
+  const checkedCount = document.querySelectorAll('.gallery-checkbox:checked').length;
+  const hasOutput = galleryOutputPath.value.trim() !== '';
+  galleryStartBtn.disabled = checkedCount === 0 || !hasOutput;
+
+  if (checkedCount > 0) {
+    galleryStartBtn.textContent = `🚀 抓取 ${checkedCount} 个图库`;
+  } else {
+    galleryStartBtn.textContent = '🚀 开始抓取';
+  }
+}
+
+// 获取抓取阶段描述
+function getGalleryCrawlStageDescription(stage, progress) {
+  switch (stage) {
+    case 'fetching':
+      return '📄 正在获取图库信息...';
+    case 'downloading':
+      if (progress && progress.downloaded !== undefined) {
+        return `📥 下载中: ${progress.downloaded}/${progress.imageTotal} 张 (失败: ${progress.failed || 0})`;
+      }
+      return '📥 正在下载图片...';
+    default:
+      return '';
+  }
+}
+
+// 开始抓取
+galleryStartBtn.addEventListener('click', async () => {
+  // 获取选中的图库
+  const selectedGalleries = [];
+  document.querySelectorAll('.gallery-checkbox:checked').forEach(cb => {
+    const index = parseInt(cb.dataset.index);
+    selectedGalleries.push(searchedGalleries[index]);
+  });
+
+  if (selectedGalleries.length === 0) {
+    alert('请至少选择一个图库');
+    return;
+  }
+
+  if (!galleryOutputPath.value) {
+    alert('请选择保存目录');
+    return;
+  }
+
+  // 显示进度
+  galleryProgressSection.style.display = 'block';
+  galleryDoneSection.style.display = 'none';
+  galleryStartBtn.disabled = true;
+
+  // 监听进度更新
+  window.electronAPI.onGalleryCrawlProgress((data) => {
+    const percent = Math.round((data.current / data.total) * 100);
+    galleryProgressFill.style.width = percent + '%';
+    galleryProgressText.textContent = `${percent}% (${data.current}/${data.total})`;
+    galleryCurrentGallery.textContent = data.currentGallery;
+    galleryStage.textContent = getGalleryCrawlStageDescription(data.stage, data);
+  });
+
+  try {
+    const result = await window.electronAPI.galleryCrawlAndPack(selectedGalleries, galleryOutputPath.value);
+
+    // 显示结果
+    galleryProgressSection.style.display = 'none';
+    galleryDoneSection.style.display = 'block';
+
+    gallerySuccessCount.textContent = result.success;
+    galleryImageCount.textContent = result.totalImages;
+
+    if (result.failed > 0) {
+      galleryFailedResult.style.display = 'flex';
+      galleryFailedCount.textContent = result.failed;
+
+      // 显示错误详情
+      galleryErrorList.style.display = 'block';
+      galleryErrorListContent.innerHTML = '';
+      result.errors.forEach(err => {
+        const li = document.createElement('li');
+        li.textContent = `${err.gallery}: ${err.error}`;
+        galleryErrorListContent.appendChild(li);
+      });
+    } else {
+      galleryFailedResult.style.display = 'none';
+      galleryErrorList.style.display = 'none';
+    }
+
+  } catch (error) {
+    alert('抓取出错: ' + error.message);
+    galleryProgressSection.style.display = 'none';
+  } finally {
+    window.electronAPI.removeGalleryCrawlProgressListener();
+    galleryStartBtn.disabled = false;
+  }
+});
+
+// 取消抓取
+galleryCancelBtn.addEventListener('click', async () => {
+  galleryCancelBtn.disabled = true;
+  galleryCancelBtn.textContent = '取消中...';
+
+  try {
+    await window.electronAPI.galleryCancelCrawl();
+    galleryStage.textContent = '⚠️ 正在取消...';
+  } catch (error) {
+    console.error('取消失败:', error);
+  }
+
+  // 注意：实际取消会在抓取完成后处理
+  setTimeout(() => {
+    galleryCancelBtn.disabled = false;
+    galleryCancelBtn.textContent = '❌ 取消抓取';
+  }, 1000);
+});
+
+// 打开输出文件夹
+galleryOpenFolderBtn.addEventListener('click', () => {
+  window.electronAPI.openFolder(galleryOutputPath.value);
+});
+
+// 重新开始（图库抓取工具）
+galleryResetBtn.addEventListener('click', () => {
+  galleryKeyword.value = '';
+  galleryOutputPath.value = '';
+  searchedGalleries = [];
+  currentSearchKeyword = '';
+  currentSearchPage = 1;
+  hasMorePages = false;
+
+  galleryResultSection.style.display = 'none';
+  galleryTargetSection.style.display = 'none';
+  galleryProgressSection.style.display = 'none';
+  galleryDoneSection.style.display = 'none';
+
+  galleryProgressFill.style.width = '0%';
+  galleryProgressText.textContent = '0%';
+  galleryCurrentGallery.textContent = '';
+  galleryStage.textContent = '';
+
+  galleryStartBtn.disabled = true;
+  galleryStartBtn.textContent = '🚀 开始抓取';
+});
