@@ -1201,6 +1201,11 @@ txt2epubResetBtn.addEventListener('click', () => {
 // 获取DOM元素
 const galleryKeyword = document.getElementById('gallery-keyword');
 const gallerySearchBtn = document.getElementById('gallery-searchBtn');
+const gallerySearchAllBtn = document.getElementById('gallery-searchAllBtn');
+const galleryMaxPages = document.getElementById('gallery-maxPages');
+const gallerySearchProgress = document.getElementById('gallery-searchProgress');
+const gallerySearchProgressText = document.getElementById('gallery-searchProgressText');
+const galleryCancelSearchBtn = document.getElementById('gallery-cancelSearchBtn');
 const galleryResultSection = document.getElementById('gallery-resultSection');
 const galleryResultCount = document.getElementById('gallery-resultCount');
 const gallerySelectAllBtn = document.getElementById('gallery-selectAllBtn');
@@ -1232,6 +1237,7 @@ let searchedGalleries = [];
 let currentSearchKeyword = '';
 let currentSearchPage = 1;
 let hasMorePages = false;
+let isSearching = false; // 搜索状态标志
 
 // 搜索图库
 gallerySearchBtn.addEventListener('click', async () => {
@@ -1282,6 +1288,94 @@ gallerySearchBtn.addEventListener('click', async () => {
 galleryKeyword.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') {
     gallerySearchBtn.click();
+  }
+});
+
+// 自动加载全部页面
+gallerySearchAllBtn.addEventListener('click', async () => {
+  const keyword = galleryKeyword.value.trim();
+  if (!keyword) {
+    alert('请输入搜索关键字');
+    return;
+  }
+
+  const maxPages = parseInt(galleryMaxPages.value, 10);
+
+  // 禁用按钮，显示进度
+  gallerySearchBtn.disabled = true;
+  gallerySearchAllBtn.disabled = true;
+  gallerySearchProgress.style.display = 'flex';
+  isSearching = true;
+
+  // 重置状态
+  currentSearchKeyword = keyword;
+  currentSearchPage = 1;
+  searchedGalleries = [];
+
+  // 监听搜索进度
+  window.electronAPI.onGallerySearchProgress((progress) => {
+    gallerySearchProgressText.textContent =
+      `正在搜索第 ${progress.currentPage}/${progress.maxPages} 页... 已找到 ${progress.galleriesFound} 个图库`;
+  });
+
+  try {
+    const result = await window.electronAPI.gallerySearchAll(keyword, maxPages);
+
+    // 处理结果
+    if (result.success || result.galleries.length > 0) {
+      searchedGalleries = result.galleries;
+      hasMorePages = result.hasMore;
+      currentSearchPage = result.pagesLoaded;
+
+      // 显示结果区域
+      galleryResultSection.style.display = 'block';
+      galleryTargetSection.style.display = 'block';
+
+      // 更新结果计数
+      const pagesInfo = result.pagesLoaded > 0 ? `（已搜索 ${result.pagesLoaded} 页）` : '';
+      galleryResultCount.textContent = `共找到 ${searchedGalleries.length} 个图库 ${pagesInfo}`;
+
+      // 如果还有更多页，显示加载更多按钮
+      galleryLoadMoreBtn.style.display = hasMorePages ? 'inline-block' : 'none';
+
+      // 渲染列表
+      renderGalleryList();
+
+      if (searchedGalleries.length === 0) {
+        alert('未找到匹配的图库');
+      }
+    } else {
+      alert('搜索失败: ' + (result.error || '未知错误'));
+    }
+
+  } catch (error) {
+    alert('搜索出错: ' + error.message);
+  } finally {
+    window.electronAPI.removeGallerySearchProgressListener();
+    gallerySearchBtn.disabled = false;
+    gallerySearchAllBtn.disabled = false;
+    gallerySearchProgress.style.display = 'none';
+    isSearching = false;
+  }
+});
+
+// 取消搜索
+galleryCancelSearchBtn.addEventListener('click', async () => {
+  if (isSearching) {
+    galleryCancelSearchBtn.disabled = true;
+    galleryCancelSearchBtn.textContent = '取消中...';
+
+    try {
+      await window.electronAPI.galleryCancelCrawl();
+      gallerySearchProgressText.textContent = '正在取消搜索...';
+    } catch (error) {
+      console.error('取消搜索失败:', error);
+    }
+
+    setTimeout(() => {
+      galleryCancelSearchBtn.disabled = false;
+      galleryCancelSearchBtn.textContent = '取消';
+    }, 1000);
   }
 });
 

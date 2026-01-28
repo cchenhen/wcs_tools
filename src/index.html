@@ -557,7 +557,32 @@
             <input type="text" id="gallery-keyword" placeholder="请输入搜索关键字...">
             <button id="gallery-searchBtn" class="btn btn-primary">🔍 搜索</button>
           </div>
-          <p class="option-hint">💡 在 hentaiclub.net 上搜索图库，支持中文关键字</p>
+
+          <div class="option-group" style="margin-top: 15px;">
+            <div class="inline-options">
+              <label class="option-label">最大页数：</label>
+              <select id="gallery-maxPages" class="form-select-small">
+                <option value="10">10页</option>
+                <option value="20">20页</option>
+                <option value="50" selected>50页</option>
+                <option value="100">100页</option>
+                <option value="200">200页</option>
+              </select>
+              <button id="gallery-searchAllBtn" class="btn btn-secondary" style="margin-left: 10px;">📥 自动加载全部</button>
+            </div>
+            <p class="option-hint">💡 点击"自动加载全部"可自动获取所有符合条件的结果页面</p>
+          </div>
+
+          <!-- 搜索进度提示 -->
+          <div id="gallery-searchProgress" class="search-progress" style="display: none;">
+            <div class="search-progress-content">
+              <span class="spinner"></span>
+              <span id="gallery-searchProgressText">正在搜索第 1 页...</span>
+            </div>
+            <button id="gallery-cancelSearchBtn" class="btn btn-small btn-secondary">取消</button>
+          </div>
+
+          <p class="option-hint" style="margin-top: 10px;">💡 在 hentaiclub.net 上搜索图库，支持中文关键字</p>
         </section>
 
         <!-- 步骤 2: 搜索结果列表 -->

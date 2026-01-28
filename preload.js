@@ -129,6 +129,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 搜索图库
   gallerySearch: (keyword, page) => ipcRenderer.invoke('gallery-search', { keyword, page }),
 
+  // 搜索所有页面的图库（自动分页）
+  gallerySearchAll: (keyword, maxPages) => ipcRenderer.invoke('gallery-search-all', { keyword, maxPages }),
+
+  // 监听搜索进度
+  onGallerySearchProgress: (callback) => {
+    ipcRenderer.on('gallery-search-progress', (event, data) => callback(data));
+  },
+
+  // 移除搜索进度监听
+  removeGallerySearchProgressListener: () => {
+    ipcRenderer.removeAllListeners('gallery-search-progress');
+  },
+
   // 获取画廊图片
   galleryGetImages: (galleryUrl) => ipcRenderer.invoke('gallery-get-images', { galleryUrl }),
 

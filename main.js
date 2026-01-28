@@ -2051,9 +2051,129 @@ async function crawlAndPackGallery(galleryUrl, outputPath, options = {}) {
 
 // IPC 处理程序
 
+// 搜索所有页面的图库（自动分页获取）
+async function searchAllGalleries(keyword, options = {}) {
+  const { maxPages = 50, onProgress } = options;
+
+  const allGalleries = [];
+  const seenUrls = new Set();
+  let currentPage = 1;
+  let hasMore = true;
+  let consecutiveEmptyPages = 0;
+  const maxConsecutiveEmpty = 3; // 连续空页面阈值
+
+  try {
+    while (hasMore && currentPage <= maxPages) {
+      // 检查是否取消
+      if (galleryCrawlAbortController && galleryCrawlAbortController.signal.aborted) {
+        return {
+          success: false,
+          error: '搜索已取消',
+          galleries: allGalleries,
+          pagesLoaded: currentPage - 1
+        };
+      }
+
+      // 发送进度通知
+      if (onProgress) {
+        onProgress({
+          currentPage,
+          maxPages,
+          galleriesFound: allGalleries.length,
+          stage: 'searching'
+        });
+      }
+
+      // 添加请求间隔，避免请求过于频繁
+      if (currentPage > 1) {
+        await delay(HENTAICLUB_CONFIG.requestDelay);
+      }
+
+      const result = await searchGalleries(keyword, currentPage);
+
+      if (!result.success) {
+        console.error(`搜索第${currentPage}页失败:`, result.error);
+        consecutiveEmptyPages++;
+
+        if (consecutiveEmptyPages >= maxConsecutiveEmpty) {
+          console.log(`连续${maxConsecutiveEmpty}页获取失败，停止搜索`);
+          break;
+        }
+
+        currentPage++;
+        continue;
+      }
+
+      // 去重并添加新的图库
+      const newGalleries = result.galleries.filter(g => !seenUrls.has(g.url));
+
+      if (newGalleries.length === 0) {
+        consecutiveEmptyPages++;
+
+        if (consecutiveEmptyPages >= maxConsecutiveEmpty) {
+          console.log(`连续${maxConsecutiveEmpty}页无新内容，停止搜索`);
+          break;
+        }
+      } else {
+        consecutiveEmptyPages = 0;
+
+        for (const gallery of newGalleries) {
+          seenUrls.add(gallery.url);
+          allGalleries.push(gallery);
+        }
+      }
+
+      console.log(`第${currentPage}页: 新增 ${newGalleries.length} 个图库, 总计 ${allGalleries.length} 个`);
+
+      hasMore = result.hasNextPage;
+      currentPage++;
+
+      // 内存保护：如果图库数量过多，停止搜索
+      if (allGalleries.length >= 1000) {
+        console.log('已达到1000个图库上限，停止搜索');
+        break;
+      }
+    }
+
+    return {
+      success: true,
+      galleries: allGalleries,
+      pagesLoaded: currentPage - 1,
+      hasMore: hasMore && currentPage <= maxPages
+    };
+
+  } catch (err) {
+    console.error('搜索所有页面失败:', err.message);
+    return {
+      success: false,
+      error: err.message,
+      galleries: allGalleries,
+      pagesLoaded: currentPage - 1
+    };
+  }
+}
+
 // 搜索图库
 ipcMain.handle('gallery-search', async (event, { keyword, page }) => {
   return await searchGalleries(keyword, page || 1);
+});
+
+// 搜索所有页面的图库
+ipcMain.handle('gallery-search-all', async (event, { keyword, maxPages }) => {
+  // 重置取消控制器
+  galleryCrawlAbortController = new AbortController();
+
+  const result = await searchAllGalleries(keyword, {
+    maxPages: maxPages || 50,
+    onProgress: (progress) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('gallery-search-progress', progress);
+      }
+    }
+  });
+
+  galleryCrawlAbortController = null;
+  return result;
 });
 
 // 获取画廊详情
