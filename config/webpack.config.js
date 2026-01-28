@@ -9,21 +9,21 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 module.exports = {
   mode: isDev ? 'development' : 'production',
-  
+
   // 渲染进程入口
   entry: {
-    renderer: './src/renderer.js'
+    renderer: path.resolve(__dirname, '../src/renderer/renderer.js')
   },
-  
+
   output: {
-    path: path.resolve(__dirname, 'dist'),
+    path: path.resolve(__dirname, '../dist'),
     filename: '[name].[contenthash].js',
     clean: true
   },
-  
+
   // Electron 渲染进程目标
   target: 'web',
-  
+
   module: {
     rules: [
       // JavaScript
@@ -63,11 +63,11 @@ module.exports = {
       }
     ]
   },
-  
+
   plugins: [
     // 生成 HTML 文件
     new HtmlWebpackPlugin({
-      template: './src/index.html',
+      template: path.resolve(__dirname, '../src/renderer/index.html'),
       filename: 'index.html',
       inject: 'body',
       minify: !isDev ? {
@@ -76,21 +76,21 @@ module.exports = {
         removeAttributeQuotes: true
       } : false
     }),
-    
+
     // 提取 CSS 到单独文件（生产环境）
     ...(!isDev ? [new MiniCssExtractPlugin({
       filename: 'css/[name].[contenthash].css'
     })] : []),
-    
+
     // 复制主进程和 preload 文件到 dist
     new CopyPlugin({
       patterns: [
-        { from: 'main.js', to: 'main.js' },
-        { from: 'preload.js', to: 'preload.js' }
+        { from: path.resolve(__dirname, '../src/main/main.js'), to: 'main.js' },
+        { from: path.resolve(__dirname, '../src/main/preload.js'), to: 'preload.js' }
       ]
     })
   ],
-  
+
   optimization: {
     minimize: !isDev,
     minimizer: [
@@ -114,23 +114,23 @@ module.exports = {
       }
     }
   },
-  
+
   devtool: isDev ? 'source-map' : false,
-  
+
   // 开发服务器配置（用于热重载）
   devServer: {
     static: {
-      directory: path.join(__dirname, 'dist')
+      directory: path.join(__dirname, '../dist')
     },
     port: 9000,
     hot: true,
     open: false
   },
-  
+
   resolve: {
     extensions: ['.js', '.json']
   },
-  
+
   // 忽略 Node.js 内置模块（渲染进程通过 preload 访问）
   externals: {
     electron: 'commonjs electron'

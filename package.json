@@ -2,12 +2,12 @@
   "name": "video-shortcut-extractor",
   "version": "1.0.0",
   "description": "跨平台视频快捷方式提取工具",
-  "main": "main.js",
+  "main": "src/main/main.js",
   "scripts": {
     "start": "npm run build:dev && electron .",
-    "start:dev": "webpack serve --mode development",
-    "build:dev": "webpack --mode development",
-    "build:prod": "webpack --mode production",
+    "start:dev": "webpack serve --config config/webpack.config.js --mode development",
+    "build:dev": "webpack --config config/webpack.config.js --mode development",
+    "build:prod": "webpack --config config/webpack.config.js --mode production",
     "build": "npm run build:prod && electron-builder",
     "build:mac": "npm run build:prod && electron-builder --mac",
     "build:win": "npm run build:prod && electron-builder --win",
@@ -42,8 +42,8 @@
     "npmRebuild": false,
     "files": [
       "dist/**/*",
-      "main.js",
-      "preload.js",
+      "src/main/main.js",
+      "src/main/preload.js",
       "node_modules/**/*",
       "!node_modules/**/test/**",
       "!node_modules/**/*.md"

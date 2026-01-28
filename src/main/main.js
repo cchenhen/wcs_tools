@@ -409,9 +409,12 @@ function createWindow() {
   // 开发模式下加载 dist 目录，打包后加载当前目录
   const isDev = !app.isPackaged;
   if (isDev) {
-    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
   } else {
-    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    // 生产环境通常资源会被打包在一起，或者根据 electron-builder 配置调整
+    // 如果使用 asar，可能需要调整为 path.join(__dirname, '../renderer/index.html') 或类似
+    // 暂时先指向 dist，待验证生产构建
+    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
   }
 
   mainWindow.once('ready-to-show', () => {
