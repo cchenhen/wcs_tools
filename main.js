@@ -1443,26 +1443,53 @@ async function convertTxtToEpub(txtFile, outputPath, options = {}) {
       throw new Error('未能解析出任何章节');
     }
 
-    // 准备EPUB内容
-    const epubContent = chapters.map((ch, index) => ({
+    // 准备EPUB内容 (epub-gen-memory 章节使用 content 字段)
+    const epubChapters = chapters.map((ch, index) => ({
       title: ch.title,
-      data: `
-        <html>
-          <head>
-            <title>${escapeHtml(ch.title)}</title>
-            <style>
-              body { font-family: serif; line-height: 1.8; padding: 20px; }
-              h1 { text-align: center; margin-bottom: 30px; }
-              p { text-indent: 2em; margin: 0.8em 0; }
-            </style>
-          </head>
-          <body>
-            <h1>${escapeHtml(ch.title)}</h1>
-            ${contentToHtml(ch.content)}
-          </body>
-        </html>
+      content: `
+        <h1>${escapeHtml(ch.title)}</h1>
+        ${contentToHtml(ch.content)}
       `
     }));
+
+    // 添加 File polyfill (epub-gen-memory 在 Node.js 环境下需要)
+    if (typeof global.File === 'undefined') {
+      global.File = class File {
+        constructor(chunks, name, options = {}) {
+          this.name = name;
+          this.lastModified = options.lastModified || Date.now();
+          this.type = options.type || '';
+          // 将 chunks 合并为一个 Buffer
+          if (Array.isArray(chunks)) {
+            const buffers = chunks.map(chunk => {
+              if (Buffer.isBuffer(chunk)) return chunk;
+              if (typeof chunk === 'string') return Buffer.from(chunk);
+              if (chunk instanceof ArrayBuffer) return Buffer.from(chunk);
+              if (ArrayBuffer.isView(chunk)) return Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+              return Buffer.from(String(chunk));
+            });
+            this._buffer = Buffer.concat(buffers);
+          } else {
+            this._buffer = Buffer.from([]);
+          }
+          this.size = this._buffer.length;
+        }
+        arrayBuffer() {
+          return Promise.resolve(this._buffer.buffer.slice(this._buffer.byteOffset, this._buffer.byteOffset + this._buffer.byteLength));
+        }
+        text() {
+          return Promise.resolve(this._buffer.toString('utf-8'));
+        }
+        stream() {
+          const { Readable } = require('stream');
+          return Readable.from(this._buffer);
+        }
+        slice(start, end, contentType) {
+          const slicedBuffer = this._buffer.slice(start, end);
+          return new File([slicedBuffer], this.name, { type: contentType || this.type });
+        }
+      };
+    }
 
     // 使用epub-gen-memory生成EPUB
     const epub = require('epub-gen-memory').default;
@@ -1470,13 +1497,13 @@ async function convertTxtToEpub(txtFile, outputPath, options = {}) {
     const epubBuffer = await epub({
       title: bookTitle,
       author: author,
-      content: epubContent,
       css: `
         body { font-family: serif; line-height: 1.8; }
         h1 { text-align: center; margin-bottom: 30px; font-size: 1.5em; }
         p { text-indent: 2em; margin: 0.8em 0; }
-      `
-    });
+      `,
+      prependChapterTitles: false  // 我们已经在 content 中添加了标题
+    }, epubChapters);
 
     // 生成输出文件名
     let epubName = `${bookTitle}.epub`;
